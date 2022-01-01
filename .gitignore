@@ -1,0 +1,7 @@
+*.img
+*.elf
+*.iso
+*.o
+isoroot/
+obj/
+.vscode/
