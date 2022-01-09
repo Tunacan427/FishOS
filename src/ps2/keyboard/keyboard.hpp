@@ -2,10 +2,8 @@
 
 #include <types.hpp>
 
-namespace ps2 {
-namespace keyboard {
+namespace ps2::keyboard {
 
 void setup();
 
-}
 }

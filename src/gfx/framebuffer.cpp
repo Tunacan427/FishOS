@@ -1,6 +1,6 @@
-#include <fb/framebuffer.hpp>
+#include <gfx/framebuffer.hpp>
 
-namespace fb {
+namespace gfx {
 
 void Framebuffer::put_pixel(u16 x, u16 y, u32 color) {
     if (color & 255 == 0) return; // ignore if alpha is 0

@@ -17,19 +17,19 @@ static inline void outl(const u16 port, const u32 val) {
 }
 
 static inline u8 inb(const u16 port) {
-	u8 ret;
+    volatile u8 ret;
     asm volatile("inb %1, %0" : "=a" (ret) : "Nd" (port));
     return ret;
 }
 
 static inline u16 inw(const u16 port) {
-	u16 ret;
+    volatile u16 ret;
     asm volatile("inw %1, %0" : "=a" (ret) : "Nd" (port));
     return ret;
 }
 
 static inline u32 inl(const u16 port) {
-	u32 ret;
+    volatile u32 ret;
     asm volatile("inl %1, %0" : "=a" (ret) : "Nd" (port));
     return ret;
 }

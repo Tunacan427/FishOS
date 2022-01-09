@@ -3,7 +3,7 @@
 
 namespace cpu {
 
-static IDTEntry idt[256] [[gnu::aligned(16)]] = { 0 };
+[[gnu::aligned(16)]] static IDTEntry idt[256] = { 0 };
 static IDTR idtr;
 static IDTHandler idt_handlers[256];
 
@@ -23,8 +23,37 @@ void load_idt_handler(u16 index, IDTHandler handler) {
     idt_handlers[index] = handler;
 }
 
+const char *exception_strings[] = {
+    "Division By Zero",
+    "Debug",
+    "Non Maskable Interrupt",
+    "Breakpoint",
+    "Into Detected Overflow",
+    "Out of Bounds",
+    "Invalid Opcode",
+    "No Coprocessor",
+    "Double Fault",
+    "Coprocessor Segment Overrun",
+    "Bad TSS",
+    "Segment Not Present",
+    "Stack Fault",
+    "General Protection Fault",
+    "Page Fault",
+    "Unknown Interrupt",
+    "Coprocessor Fault",
+    "Alignment Check",
+    "Machine Check"
+};
+
 static void exception_handler(InterruptFrame *frame) {
-    kstd::printf("\nCPU Exception %d\n", frame->vec);
+    const char *err_name = frame->vec < 19 ? exception_strings[frame->vec] : "Reserved";
+    kstd::printf("\nCPU Exception: %s (%#lX)\n", err_name, frame->vec);
+    if (frame->err) kstd::printf("Error code: %#04lX\n", frame->err);
+    kstd::printf("RAX=%016lX RBX=%016lX RCX=%016lX RDX=%016lX\n", frame->rax, frame->rbx, frame->rcx, frame->rdx);
+    kstd::printf("RSI=%016lX RDI=%016lX RBP=%016lX RSP=%016lX\n", frame->rsi, frame->rdi, frame->rbp, frame->rsp);
+    kstd::printf(" R8=%016lX  R9=%016lX R10=%016lX R11=%016lX\n", frame->r8, frame->r9, frame->r10, frame->r11);
+    kstd::printf("R12=%016lX R13=%016lX R14=%016lX R15=%016lX\n", frame->r12, frame->r13, frame->r14, frame->r15);
+    kstd::printf("RIP=%016lX RFLAGS=%016lX\n", frame->rip, frame->rflags);
     kstd::printf("[ .. ] Cannot recover, hanging\n");
     for (;;) asm("hlt");
 }

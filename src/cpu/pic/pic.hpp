@@ -21,13 +21,11 @@
 
 #define PIC_EOI         0x20
 
-namespace cpu {
-namespace pic {
+namespace cpu::pic {
 
 void remap(u8 offset1, u8 offset2);
 void send_eoi(u8 irq);
 void set_mask(u8 irq);
 void clear_mask(u8 irq);
 
-}
 }

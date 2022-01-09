@@ -1,6 +1,5 @@
 #include <kstd/cstdio.hpp>
 #include <ioports.hpp>
-#include <fb/framebuffer.hpp>
 
 static inline int num_digits(u64 x, u64 b = 10) {
     int i = 0;
@@ -12,19 +11,6 @@ namespace kstd {
 
 int putchar(char c) {
     io::outb(0x3F8, c);
-    /*
-    term_x++;
-    if (c == '\n') {
-        term_x = 0;
-        term_y++;
-        return c;
-    }
-    if (c == '\r') {
-        term_x = 0;
-        return c;
-    }
-    fb::framebuffer.draw_psf_char((fb::PSF*)_binary_font_psfu_start, c, term_x, term_y, 0, 0, 0xFFFFFFFF, 0);
-    */
     return c;
 }
 
@@ -33,6 +19,7 @@ int vprintf(const char *format, va_list list) {
     for (int i = 0; format[i]; i++) {
         bool alt_form = false;
         bool long_int = false;
+        u8 zero_pad = 0;
 
         if (format[i] == '%') {
             i++;
@@ -42,6 +29,15 @@ int vprintf(const char *format, va_list list) {
                 case '#':
                     alt_form = true;
                     i++;
+                    break;
+                case '0':
+                    i++;
+                    zero_pad = format[i] - '0';
+                    i++;
+                    if (format[i] >= '0' && format[i] <= '9') {
+                        zero_pad = ((format[i - 1] - '0') * 10) + (format[i] - '0');
+                        i++;
+                    }
                     break;
                 case 'l':
                     long_int = true;
@@ -60,7 +56,13 @@ int vprintf(const char *format, va_list list) {
                     u64 value = 0;
                     if (long_int) value = va_arg(list, u64);
                     else value = va_arg(list, u32);
-                    for (int di = num_digits(value, 16); di >= 0; di--) {
+                    int digits = num_digits(value, 16);
+                    if (zero_pad && zero_pad > digits) {
+                        for (int j = 0; j < zero_pad - digits - 1; j++)
+                            putchar('0');
+                        written += zero_pad - digits - 1;
+                    }
+                    for (int di = digits; di >= 0; di--) {
                         u64 v = value;
                         for (int dii = 0; dii < di; dii++) v /= 16;
                         u64 d = v % 16;
@@ -74,7 +76,13 @@ int vprintf(const char *format, va_list list) {
                     if (long_int) value = va_arg(list, u64);
                     else value = va_arg(list, u32);
                     u64 v = value;
-                    for (int di = num_digits(value); di >= 0; di--) {
+                    int digits = num_digits(value);
+                    if (zero_pad && zero_pad > digits) {
+                        for (int j = 0; j < zero_pad - digits - 1; j++)
+                            putchar('0');
+                        written += zero_pad - digits - 1;
+                    }
+                    for (int di = digits; di >= 0; di--) {
                         u64 v = value;
                         for (int dii = 0; dii < di; dii++) v /= 10;
                         u64 d = v % 10;

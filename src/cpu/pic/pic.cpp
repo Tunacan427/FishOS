@@ -3,8 +3,7 @@
 
 using namespace io;
 
-namespace cpu {
-namespace pic {
+namespace cpu::pic {
 
 void remap(u8 offset1, u8 offset2) {
     u8 a1 = inb(PIC1_DATA); // save masks
@@ -49,5 +48,4 @@ void clear_mask(u8 irq) {
     outb(port, inb(port) & ~(1 << (irq < 8 ? irq : irq - 8)));
 }
 
-}
 }

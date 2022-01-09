@@ -1,3 +1,4 @@
+#include "kstd/bitmap.hpp"
 #include <types.hpp>
 #include <kstd/cstring.hpp>
 #include <kstd/cstdio.hpp>
@@ -7,7 +8,8 @@
 #include <cpu/idt/idt.hpp>
 #include <cpu/pic/pic.hpp>
 #include <ps2/keyboard/keyboard.hpp>
-#include <fb/framebuffer.hpp>
+#include <gfx/framebuffer.hpp>
+#include <mem/manager.hpp>
 
 static u8 stack[8192];
 
@@ -30,12 +32,17 @@ static stivale2_header_tag_smp smp_header_tag = {
     .flags = 1 // use x2APIC if available
 };
 
+static stivale2_tag unmap_null_header_tag = {
+    .identifier = STIVALE2_HEADER_TAG_UNMAP_NULL_ID,
+    .next = (u64)&smp_header_tag
+};
+
 [[gnu::section(".stivale2hdr"), gnu::used]]
 static stivale2_header stivale_hdr = {
     .entry_point = 0,
     .stack = (u64)stack + sizeof(stack),
-    .flags = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4),
-    .tags = (u64)&framebuffer_header_tag
+    .flags = 0b11110,
+    .tags = (u64)&unmap_null_header_tag
 };
 
 void *stivale2_get_tag(stivale2_struct *stivale2_struct, u64 id) {
@@ -56,9 +63,11 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     auto tag_mmap = (stivale2_struct_tag_memmap*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_MEMMAP_ID);
     auto tag_pmrs = (stivale2_struct_tag_pmrs*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_PMRS_ID);
     auto tag_base_addr = (stivale2_struct_tag_kernel_base_address*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_KERNEL_BASE_ADDRESS_ID);
+    auto tag_hhdm = (stivale2_struct_tag_hhdm*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_HHDM_ID);
     auto tag_rsdp = (stivale2_struct_tag_rsdp*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_RSDP_ID);
+    auto tag_smp = (stivale2_struct_tag_smp*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_SMP_ID);
 
-    if (tag_fb == 0 || tag_mmap == 0 || tag_pmrs == 0 || tag_base_addr == 0 || tag_rsdp == 0) {
+    if (tag_fb == 0 || tag_mmap == 0 || tag_pmrs == 0 || tag_base_addr == 0 || tag_hhdm == 0 || tag_rsdp == 0) {
         kstd::printf("[ .. ] Couldn't find the requested stivale2 tags, hanging\n");
         for (;;) asm("hlt");
     }
@@ -79,8 +88,47 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     ps2::keyboard::setup();
     kstd::printf("\r[ OK ]\n");
 
+    if (tag_smp != 0) {
+        kstd::printf("[INFO] SMP | x2APIC: %s\n", (tag_smp->flags & 1) ? "yes" : "no");
+        for (int i = 0; i < tag_smp->cpu_count; i++) {
+            auto info = tag_smp->smp_info[i];
+            auto is_bsp = info.lapic_id == tag_smp->bsp_lapic_id ? " (BSP)" : "";
+            kstd::printf("       Core %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp, info.processor_id, info.lapic_id);
+        }
+    }
+
+    kstd::printf("[INFO] Printing memory information\n");
+    kstd::printf("[INFO] Physical memory map:\n");
+    for (int i = 0; i < tag_mmap->entries; i++) {
+        auto entry = tag_mmap->memmap[i];
+        const char *entry_name;
+        switch (entry.type) {
+        case STIVALE2_MMAP_USABLE: entry_name = "Usable"; break;
+        case STIVALE2_MMAP_RESERVED: entry_name = "Reserved"; break;
+        case STIVALE2_MMAP_ACPI_RECLAIMABLE: entry_name = "ACPI Reclaimable"; break;
+        case STIVALE2_MMAP_ACPI_NVS: entry_name = "ACPI NVS"; break;
+        case STIVALE2_MMAP_BAD_MEMORY: entry_name = "Bad Memory"; break;
+        case STIVALE2_MMAP_BOOTLOADER_RECLAIMABLE: entry_name = "Bootloader Reclaimable"; break;
+        case STIVALE2_MMAP_KERNEL_AND_MODULES: entry_name = "Kernel and Modules"; break;
+        case STIVALE2_MMAP_FRAMEBUFFER: entry_name = "Framebuffer"; break;
+        default: entry_name = "Unknown";
+        }
+        kstd::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry.base, entry.length / 1024);
+    }
+    kstd::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", tag_base_addr->physical_base_address, tag_base_addr->virtual_base_address);
+    kstd::printf("[INFO] Kernel PMRs:\n");
+    for (int i = 0; i < tag_pmrs->entries; i++) {
+        auto pmr = tag_pmrs->pmrs[i];
+        kstd::printf("       base %#lX, size: %ld KiB, permissions: %ld\n", pmr.base, pmr.length / 1024, pmr.permissions);
+    }
+
+    kstd::printf("[ .. ] Initializing the memory manager");
+    auto mm = mem::Manager::get();
+    mm->boot(tag_mmap, tag_pmrs, tag_base_addr, tag_hhdm);
+    kstd::printf("\r[ OK ]\n");
+
     kstd::printf("[ .. ] Setting up the framebuffer");
-    fb::Framebuffer fb = {
+    gfx::Framebuffer fb = {
         .addr = (u8*)tag_fb->framebuffer_addr,
         .width = tag_fb->framebuffer_width,
         .height = tag_fb->framebuffer_height,
@@ -88,13 +136,13 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
         .pitch = tag_fb->framebuffer_pitch,
         .pixel_width = (u32)tag_fb->framebuffer_bpp / 8
     };
+    fb.fill_rect(10, 10, 100, 100, 0xFFFFFFFF);
     kstd::printf("\r[ OK ]\n");
 
-    fb.fill_rect(10, 10, 100, 100, 0xFFFFFFFF);
-
-    kstd::printf("[ .. ] Fake hanging to test keyboard \n");
+    kstd::printf("[ .. ] Fake hanging to test keyboard\n");
     for (;;) io::wait();
 
     kstd::printf("[ .. ] Reached end of _start, hanging\n");
     for (;;) asm("hlt");
 }
+ 

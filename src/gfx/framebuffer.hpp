@@ -2,7 +2,7 @@
 
 #include <types.hpp>
 
-namespace fb {
+namespace gfx {
 
 struct Framebuffer {
     u8 *addr;

@@ -4,8 +4,7 @@
 #include <kstd/cstdio.hpp>
 #include <cpu/idt/idt.hpp>
 
-namespace ps2 {
-namespace keyboard {
+namespace ps2::keyboard {
 
 const char map[128] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8',    /* 9 */
@@ -62,5 +61,4 @@ void setup() {
     cpu::load_idt_handler(33, irq);
 }
 
-}
 }
