@@ -15,59 +15,60 @@
 #define PAGE_NO_EXECUTE (u64)1 << 63
 
 namespace mem {
+    enum class RegionType : u8 {
+        USABLE,
+        RESERVED,
+        ACPI_RECLAIMABLE,
+        ACPI_NVS,
+        BAD_MEMORY,
+        BOOTLOADER_RECLAIMABLE,
+        KERNEL_AND_MODULES,
+        FRAMEBUFFER
+    };
 
-enum class RegionType : u8 {
-    USABLE,
-    RESERVED,
-    ACPI_RECLAIMABLE,
-    ACPI_NVS,
-    BAD_MEMORY,
-    BOOTLOADER_RECLAIMABLE,
-    KERNEL_AND_MODULES,
-    FRAMEBUFFER
-};
+    const char *region_type_string(RegionType type);
 
-const char *region_type_string(RegionType type);
+    struct [[gnu::packed]] Region {
+        uptr virt, phy;
+        usize size;
+        RegionType type;
+    };
 
-struct [[gnu::packed]] Region {
-    u64 virt, phy, size;
-    RegionType type;
-};
+    class Manager {
+        Manager() {}
+    public:
+        void boot(
+            stivale2_struct_tag_memmap *tag_mmap,
+            stivale2_struct_tag_pmrs *tag_pmrs,
+            stivale2_struct_tag_kernel_base_address *tag_base_addr,
+            stivale2_struct_tag_hhdm *tag_hhdm
+        );
 
-class Manager {
-    Manager() {}
-public:
-    void boot(
-        stivale2_struct_tag_memmap *tag_mmap,
-        stivale2_struct_tag_pmrs *tag_pmrs,
-        stivale2_struct_tag_kernel_base_address *tag_base_addr,
-        stivale2_struct_tag_hhdm *tag_hhdm
-    );
+        static Manager* get();
 
-    static Manager* get();
+        usize num_regions;
+        Region *regions;
 
-    u64 num_regions;
-    Region *regions;
+        usize mem_size, heap_size;
+        uptr heap_virt_base;
+        usize hhdm;
 
-    u64 mem_size, heap_size;
-    u64 heap_virt_base;
-    u64 hhdm;
+        kstd::Bitmap page_bitmap;
+        [[gnu::aligned(0x1000)]] u64 PML4[512];
 
-    kstd::Bitmap page_bitmap;
-    [[gnu::aligned(0x1000)]] u64 PML4[512];
+        void* request_page();
+        void* request_pages(usize pages_requested);
+        void free_page(void *virt);
+        void free_pages(void *virt, usize pages);
 
-    void* request_page();
-    void free_page(void *virt);
+        uptr heap_virt_to_phy(uptr virt);
+        uptr heap_phy_to_virt(uptr phy);
+        
+        void map_page(uptr phy, uptr virt, u64 flags);
+        void map_pages(uptr phy, uptr virt, usize size, u64 flags);
+    };
 
-    u64 heap_virt_to_phy(u64 virt);
-    u64 heap_phy_to_virt(u64 phy);
-    
-    void map_page(u64 phy, u64 virt, u64 flags);
-    void map_pages(u64 phy, u64 virt, u64 size, u64 flags);
-};
-
-static inline void invlpg(u64 addr) {
-    asm volatile("invlpg (%0)" : : "r" (addr) : "memory");
-}
-
+    static inline void invlpg(uptr addr) {
+        asm volatile("invlpg (%0)" : : "r" (addr) : "memory");
+    }
 }

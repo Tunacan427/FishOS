@@ -4,7 +4,7 @@ ISO := fishos.iso
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CPPFLAGS = -O0 -pipe -g
+CPPFLAGS = -O2 -pipe -g
 NASMFLAGS = -felf64 -g
 
 INTERNALLDFLAGS :=         \

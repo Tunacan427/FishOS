@@ -1,15 +1,17 @@
-#include "kstd/bitmap.hpp"
 #include <types.hpp>
 #include <kstd/cstring.hpp>
 #include <kstd/cstdio.hpp>
+#include <kstd/bitmap.hpp>
+#include <kstd/cstdlib.hpp>
 #include <stivale2.h>
 #include <ioports.hpp>
 #include <cpu/gdt/gdt.hpp>
 #include <cpu/idt/idt.hpp>
 #include <cpu/pic/pic.hpp>
-#include <ps2/keyboard/keyboard.hpp>
+#include <ps2/kbd/keyboard.hpp>
 #include <gfx/framebuffer.hpp>
 #include <mem/manager.hpp>
+#include <mem/allocator.hpp>
 
 static u8 stack[8192];
 
@@ -67,11 +69,11 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     auto tag_rsdp = (stivale2_struct_tag_rsdp*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_RSDP_ID);
     auto tag_smp = (stivale2_struct_tag_smp*)stivale2_get_tag(stivale2_struct, STIVALE2_STRUCT_TAG_SMP_ID);
 
-    if (tag_fb == 0 || tag_mmap == 0 || tag_pmrs == 0 || tag_base_addr == 0 || tag_hhdm == 0 || tag_rsdp == 0) {
+    if (!tag_fb || !tag_mmap || !tag_pmrs || !tag_base_addr || !tag_hhdm || !tag_rsdp || !tag_smp) {
         kstd::printf("[ .. ] Couldn't find the requested stivale2 tags, hanging\n");
         for (;;) asm("hlt");
     }
-
+    
     kstd::printf("[ .. ] Loading new GDT");
     cpu::load_gdt();
     kstd::printf("\r[ OK ]\n");
@@ -85,16 +87,14 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     kstd::printf("\r[ OK ]\n");
 
     kstd::printf("[ .. ] Setting up PS/2 keyboard");
-    ps2::keyboard::setup();
+    ps2::kbd::setup();
     kstd::printf("\r[ OK ]\n");
 
-    if (tag_smp != 0) {
-        kstd::printf("[INFO] SMP | x2APIC: %s\n", (tag_smp->flags & 1) ? "yes" : "no");
-        for (int i = 0; i < tag_smp->cpu_count; i++) {
-            auto info = tag_smp->smp_info[i];
-            auto is_bsp = info.lapic_id == tag_smp->bsp_lapic_id ? " (BSP)" : "";
-            kstd::printf("       Core %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp, info.processor_id, info.lapic_id);
-        }
+    kstd::printf("[INFO] SMP | x2APIC: %s\n", (tag_smp->flags & 1) ? "yes" : "no");
+    for (int i = 0; i < tag_smp->cpu_count; i++) {
+        auto info = tag_smp->smp_info[i];
+        auto is_bsp = info.lapic_id == tag_smp->bsp_lapic_id ? " (BSP)" : "";
+        kstd::printf("       Core %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp, info.processor_id, info.lapic_id);
     }
 
     kstd::printf("[INFO] Printing memory information\n");
@@ -117,7 +117,7 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     }
     kstd::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", tag_base_addr->physical_base_address, tag_base_addr->virtual_base_address);
     kstd::printf("[INFO] Kernel PMRs:\n");
-    for (int i = 0; i < tag_pmrs->entries; i++) {
+    for (usize i = 0; i < tag_pmrs->entries; i++) {
         auto pmr = tag_pmrs->pmrs[i];
         kstd::printf("       base %#lX, size: %ld KiB, permissions: %ld\n", pmr.base, pmr.length / 1024, pmr.permissions);
     }
@@ -125,6 +125,12 @@ extern "C" void _start(stivale2_struct *stivale2_struct) {
     kstd::printf("[ .. ] Initializing the memory manager");
     auto mm = mem::Manager::get();
     mm->boot(tag_mmap, tag_pmrs, tag_base_addr, tag_hhdm);
+    kstd::printf("\r[ OK ]\n");
+
+    kstd::printf("[ .. ] Initializing the memory allocator");
+    auto alloc = mem::BuddyAlloc::get();
+    usize kernel_heap_size = 2 * 1024 * 1024;
+    alloc->boot((uptr)mm->request_pages(kernel_heap_size / 0x1000), kernel_heap_size);
     kstd::printf("\r[ OK ]\n");
 
     kstd::printf("[ .. ] Setting up the framebuffer");

@@ -1,6 +1,5 @@
-# h
-hhhhhhh
+# FishOS
 
-hhhhh
+operating system of the fish
 
-hhh
+will be more usable than 9front by september 1 2022 /s
