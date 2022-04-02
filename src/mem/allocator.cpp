@@ -1,44 +1,31 @@
 #include <mem/allocator.hpp>
-#include <mem/manager.hpp>
 #include <kstd/cstring.hpp>
-#include <kstd/mutex.hpp>
+#include <kstd/lock.hpp>
 #include <kstd/cstdlib.hpp>
 #include <kstd/cstdio.hpp>
 
-static volatile kstd::Mutex allocator_mutex;
-
-static inline usize align(usize i, usize alignment) {
-    return i % alignment ? ((i / alignment) + 1) * alignment : i;
-}
-
-static inline usize size_required(usize size, usize alignment) {
-    usize actual_size = alignment;
-    size += sizeof(mem::BuddyBlock);
-    size = align(size, alignment); 
-    while (size > actual_size)
-        actual_size <<= 1;
-    return actual_size;
-}
+static volatile kstd::Spinlock alloc_lock;
 
 namespace mem {
-    BuddyBlock* BuddyBlock::split_until(usize size) {
+    BuddyAlloc::Block* BuddyAlloc::Block::split_until(usize size) {
         if (size == 0) return nullptr;
         auto block = this;
-        while (size < block->size) {
-            usize s = block->size / 2;
-            block->size = s;
-            kstd::printf("Block %#lX size %#lX split into %#lX & %#lX at size %#lX\n", (uptr)block, s * 2, (uptr)block, (uptr)block->next(), s);
+        auto current_actual_size = size_required(block->size);
+        while (size < current_actual_size) {
+            current_actual_size /= 2;
+            block->size = current_actual_size;
+            //kstd::printf("Block %#lX size %#lX split into %#lX & %#lX at size %#lX, requested %#lX\n", (uptr)block, current_actual_size * 2, (uptr)block, (uptr)block->next(), current_actual_size, size);
             block = block->next();
-            block->size = s;
+            block->size = current_actual_size;
             block->is_free = true;
         }
-        if (size <= block->size)
+        if (size <= current_actual_size)
             return block;
         return nullptr; // death
     }
 
-    void BuddyAlloc::boot(uptr base, usize size) {
-        this->head = (BuddyBlock*)base;
+    void BuddyAlloc::init(uptr base, usize size) {
+        this->head = (Block*)base;
         this->head->size = size;
         this->head->is_free = true;
         this->tail = this->head->next();
@@ -49,11 +36,11 @@ namespace mem {
         return &alloc;
     }
 
-    BuddyBlock* BuddyAlloc::find_best(usize size) {
-        kstd::printf("Trying to find best block with size %#lX\n", size);
-        BuddyBlock *best = nullptr;
-        BuddyBlock *block = this->head;
-        BuddyBlock *buddy = block->next();
+    BuddyAlloc::Block* BuddyAlloc::find_best(usize size) {
+        //kstd::printf("Trying to find best block with size %#lX\n", size);
+        Block *best = nullptr;
+        Block *block = this->head;
+        Block *buddy = block->next();
         
         if (buddy == this->tail && block->is_free) {
             return block->split_until(size);
@@ -62,11 +49,7 @@ namespace mem {
         while (block < this->tail && buddy < this->tail) { // make sure the buddies are within the range
             // if both buddies are free, coalesce them together
             if (block->is_free && buddy->is_free && block->size == buddy->size) {
-                kstd::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
-                if (block->size == 0) {
-                    kstd::printf("death\n");
-                    asm("hlt");
-                }
+                //kstd::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
                 block->size *= 2;
                 if (size <= block->size && (best == nullptr || block->size <= best->size))
                     best = block;
@@ -76,14 +59,15 @@ namespace mem {
                     buddy = block->next(); // delay the buddy block for the next iteration
                 continue;
             }
-                    
-            if (block->is_free && size <= block->size && (best == nullptr || block->size <= best->size))
+            
+            auto actual_best_size = best ? size_required(best->size) : 0;
+            if (block->is_free && size <= block->size && (best == nullptr || block->size <= actual_best_size))
                 best = block;
             
-            if (buddy->is_free && size <= buddy->size && (best == nullptr || buddy->size < best->size)) 
+            if (buddy->is_free && size <= buddy->size && (best == nullptr || buddy->size < actual_best_size)) 
                 best = buddy;
             
-            if (block->size <= buddy->size) {
+            if (size_required(block->size) <= size_required(buddy->size)) {
                 block = buddy->next();
                 if (block < this->tail)
                     buddy = block->next(); // delay the buddy block for the next iteration
@@ -95,7 +79,7 @@ namespace mem {
         }
         
         if (best) {
-            kstd::printf("Found best block with size %#lX\n", best->size);
+            //kstd::printf("Found best block with size %#lX\n", best->size);
             return best->split_until(size);
         }
         return nullptr;
@@ -117,7 +101,7 @@ namespace mem {
                         buddy = block->next();
                         no_coalescence = false;
                     }
-                } else if (block->size < buddy->size) {
+                } else if (size_required(block->size) < size_required(buddy->size)) {
                     // split the buddy block into smaller blocks
                     block = buddy;
                     buddy = buddy->next();
@@ -134,10 +118,11 @@ namespace mem {
     }
 
     void* BuddyAlloc::malloc(usize size) {
-        allocator_mutex.lock();
+        alloc_lock.lock();
+        void *result = nullptr;
 
         if (size != 0) {
-            usize actual_size = size_required(size, this->alignment);
+            usize actual_size = size_required(size + sizeof(BuddyAlloc::Block));
 
             auto found = this->find_best(actual_size);
             if (!found) {
@@ -146,28 +131,35 @@ namespace mem {
             }
 
             if (found) {
+                found->size = size + sizeof(BuddyAlloc::Block);
                 found->is_free = false;
-                allocator_mutex.unlock();
-                return found->data();
+                result = found->data();
+                goto end;
             }
         }
 
-        allocator_mutex.unlock();
-        return nullptr;
+    end:
+        alloc_lock.unlock();
+        return result;
     }
 
-    // TODO: maybe implement properly
     void* BuddyAlloc::realloc(void *ptr, usize size) {
-        allocator_mutex.lock();
+        alloc_lock.lock();
         void *result = nullptr;
 
         if (uptr old_data = (uptr)ptr) {
             if ((uptr)this->head > old_data) goto end;
             if ((uptr)this->tail <= old_data) goto end;
             
-            BuddyBlock *old_block = (BuddyBlock*)(old_data - sizeof(BuddyBlock));
+            auto old_block = (BuddyAlloc::Block*)(old_data - sizeof(BuddyAlloc::Block));
             usize old_size = old_block->size;
-            usize actual_new_size = size_required(size, this->alignment);
+            usize actual_new_size = size_required(size);
+
+            if (size_required(old_size) == actual_new_size) {
+                old_block->size = size + sizeof(BuddyAlloc::Block);
+                result = old_block;
+                goto end;
+            }
             
             auto found = this->find_best(actual_new_size);
             if (!found) {
@@ -176,31 +168,33 @@ namespace mem {
             }
             
             if (found) {
+                found->size = size + sizeof(BuddyAlloc::Block);
                 found->is_free = false;
                 result = found->data();
             } else goto end;
 
-            kstd::memcpy(result, ptr, old_size - sizeof(BuddyBlock));
+            kstd::memcpy(result, ptr, old_size - sizeof(BuddyAlloc::Block));
             old_block->is_free = true;
         }
 
     end:
-        allocator_mutex.unlock();
+        alloc_lock.unlock();
         return result;
     }
 
     void BuddyAlloc::free(void *ptr) {
-        allocator_mutex.lock();
+        alloc_lock.lock();
 
         if (uptr data = (uptr)ptr) {
             if ((uptr)this->head > data) goto end;
             if ((uptr)this->tail <= data) goto end;
             
-            BuddyBlock *block = (BuddyBlock*)(data - sizeof(BuddyBlock));
+            auto block = (BuddyAlloc::Block*)(data - sizeof(BuddyAlloc::Block));
+            block->size = size_required(block->size);
             block->is_free = true;
         }
 
     end:
-        allocator_mutex.unlock();
+        alloc_lock.unlock();
     }
 }

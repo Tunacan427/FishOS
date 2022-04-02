@@ -45,7 +45,7 @@ namespace ps2::kbd {
     };
 
     static void irq(cpu::InterruptFrame *frame) {
-        char scancode = io::inb(0x60);
+        u8 scancode = io::inb(0x60);
 
         if (scancode & 128) // release scancode, ignored
             goto end;

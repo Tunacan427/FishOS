@@ -4,7 +4,7 @@ ISO := fishos.iso
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CPPFLAGS = -O2 -pipe -g
+CPPFLAGS = -O0 -g -pipe -Wall -Wextra -Wno-unused-parameter
 NASMFLAGS = -felf64 -g
 
 INTERNALLDFLAGS :=         \
@@ -35,15 +35,30 @@ ASMFILES := $(shell find ./src -type f -name '*.asm')
 OBJ += $(ASMFILES:./src/%.asm=obj/%.o)
 # OBJ += obj/font.o
 
-.PHONY: all clean run
+.PHONY: all clean runbios runuefi installuefi
 
 all: $(ISO)
 
-run: $(ISO)
+runbios: $(ISO)
+	@echo "[QEMU]"
+	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
+		-drive id=disk,file=disk.img,if=virtio,format=raw \
+		-no-reboot -no-shutdown -M smm=off -smp 2 -s
+
+runuefi: installuefi
 	@echo "[QEMU]"
 	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
 		-drive id=disk,file=disk.img,if=virtio,format=raw -s \
-		-no-reboot -no-shutdown -M smm=off -smp 2
+		-no-reboot -no-shutdown -M smm=off -smp 2 \
+		-drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_CODE.fd \
+		-drive if=pflash,format=raw,file=ovmf/OVMF_VARS.fd \
+		-net nic,model=e1000 -net user -machine q35
+
+installuefi: $(ISO)
+	@echo [UEFI]
+	@mkdir -p ovmf
+	@cp /usr/share/ovmf/x64/OVMF_CODE.fd ovmf/
+	@cp /usr/share/ovmf/x64/OVMF_VARS.fd ovmf/
 
 $(ISO): $(KERNEL)
 	@echo "[ISO] $< | $@"
@@ -55,7 +70,7 @@ $(ISO): $(KERNEL)
 
 # Link rules for the final kernel executable.
 $(KERNEL): $(OBJ)
-	@echo "[LD]  $< | $@"
+	@echo "[LD] $@"
 	@$(CPP) $(OBJ) -o $@ $(INTERNALLDFLAGS)
 
 # Compilation rules for *.cpp files.

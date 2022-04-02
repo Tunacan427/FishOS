@@ -1,8 +1,8 @@
 #include <kstd/cstdlib.hpp>
-#include <kstd/cstdio.hpp>
-#include <kstd/mutex.hpp>
+#include <kstd/lock.hpp>
+#include <panic.hpp>
 
-static volatile kstd::Mutex static_init_mutex;
+static volatile kstd::Spinlock static_init_lock;
 
 using __guard = u64;
 
@@ -26,14 +26,14 @@ namespace __cxxabiv1  {
     extern "C" i32 __cxa_guard_acquire(__guard *g) {
         if (*g)
             return 0;
-        static_init_mutex.lock();
+        static_init_lock.lock();
         if (guard_initialized(g)) {
-            static_init_mutex.unlock();
+            static_init_lock.unlock();
             return 0;
         }
 
         if (guard_in_use(g)) {
-            kstd::printf("\n__cxa_guard_acquire: guard in use\n");
+            panic("__cxa_guard_acquire: guard in use");
             return 0;
         }
 
@@ -43,16 +43,16 @@ namespace __cxxabiv1  {
 
     extern "C" void __cxa_guard_release(__guard *g) {
         set_guard_initialized(g);
-        static_init_mutex.unlock();
+        static_init_lock.unlock();
     }
 
     extern "C" void __cxa_guard_abort(__guard *g) {
-        kstd::printf("\n__cxa_guard_abort called\n");
+        panic("__cxa_guard_abort called");
     }
 }
 
 extern "C" void __cxa_pure_virtual() {
-    kstd::printf("\n__cxa_pure_virtual called\n");
+    panic("__cxa_pure_virtual called");
 }
  
 void* operator new(usize size) {

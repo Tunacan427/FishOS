@@ -10,10 +10,15 @@ namespace kstd {
         Bitmap() {}
         Bitmap(u8 *buffer, usize size) : buffer(buffer), size(size) {}
 
-        inline bool operator[](usize index) const {
+        inline bool get(usize index) const {
             return (this->buffer[index / 8] >> (index % 8)) & 1;
         }
 
-        void set(usize index, bool value);
+        inline void set(usize index, bool value) {
+            usize d = index / 8;
+            usize r = index % 8;
+            this->buffer[d] &= ~(1 << r);
+            this->buffer[d] |= value << r;
+        }
     };
 }

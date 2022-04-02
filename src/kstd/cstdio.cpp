@@ -1,15 +1,15 @@
 #include <kstd/cstdio.hpp>
 #include <ioports.hpp>
 
-static inline int num_digits(u64 x, u64 b = 10) {
-    int i = 0;
+static inline usize num_digits(u64 x, u64 b = 10) {
+    usize i = 0;
     while (x /= b) i++;
     return i;
 }
 
 namespace kstd {
     int putchar(char c) {
-        io::outb(0x3F8, c);
+        io::outb(0x3F8, c); // output to qemu serial console
         return c;
     }
 
@@ -18,7 +18,8 @@ namespace kstd {
         for (int i = 0; format[i]; i++) {
             bool alt_form = false;
             bool long_int = false;
-            u8 zero_pad = 0;
+            usize zero_pad = 0;
+            usize s_length = 0;
 
             if (format[i] == '%') {
                 i++;
@@ -42,6 +43,13 @@ namespace kstd {
                         long_int = true;
                         i++;
                         break;
+                    case '.':
+                        i++;
+                        if (format[i] == '*') {
+                            s_length = va_arg(list, usize);
+                            i++;
+                        }
+                        break;
                     case 'x':
                     case 'X': {
                         if (alt_form) {
@@ -55,9 +63,9 @@ namespace kstd {
                         u64 value = 0;
                         if (long_int) value = va_arg(list, u64);
                         else value = va_arg(list, u32);
-                        int digits = num_digits(value, 16);
+                        usize digits = num_digits(value, 16);
                         if (zero_pad && zero_pad > digits) {
-                            for (int j = 0; j < zero_pad - digits - 1; j++)
+                            for (usize j = 0; j < zero_pad - digits - 1; j++)
                                 putchar('0');
                             written += zero_pad - digits - 1;
                         }
@@ -74,10 +82,9 @@ namespace kstd {
                         u64 value = 0;
                         if (long_int) value = va_arg(list, u64);
                         else value = va_arg(list, u32);
-                        u64 v = value;
-                        int digits = num_digits(value);
+                        usize digits = num_digits(value);
                         if (zero_pad && zero_pad > digits) {
-                            for (int j = 0; j < zero_pad - digits - 1; j++)
+                            for (usize j = 0; j < zero_pad - digits - 1; j++)
                                 putchar('0');
                             written += zero_pad - digits - 1;
                         }
@@ -92,15 +99,22 @@ namespace kstd {
                     }
                     case 's': {
                         const char *str = va_arg(list, const char*);
-                        for (int i = 0; str[i]; i++) {
-                            putchar(str[i]);
-                            written++;
+                        if (s_length) {
+                            for (usize i = 0; i < s_length; i++) {
+                                putchar(str[i]);
+                                written++;
+                            }
+                        } else {
+                            for (usize i = 0; str[i]; i++) {
+                                putchar(str[i]);
+                                written++;
+                            }
                         }
                         goto end;
                     }
                     }
                 }
-                end:
+            end:
                 continue;
             }
 
@@ -110,7 +124,7 @@ namespace kstd {
         return written;
     }
 
-    __attribute__((format(printf, 1, 2))) int printf(const char *format, ...) {
+    [[gnu::format(printf, 1, 2)]] int printf(const char *format, ...) {
         va_list list;
         va_start(list, format);
         int i = vprintf(format, list);

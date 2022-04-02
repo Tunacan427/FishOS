@@ -5,4 +5,5 @@
 isoroot/
 obj/
 .vscode/
+ovmf/
 compile_flags.txt

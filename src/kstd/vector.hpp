@@ -1,19 +1,17 @@
 #pragma once
 
 #include <types.hpp>
+#include <kstd/cstdlib.hpp>
 
 namespace kstd {
     template<typename T>
     class Vector {
         T *buffer;
-        u64 size;
+        usize size;
+        usize reserved;
     public:
-        Vector(u64 reserve = 1) : size(reserve) {
-            
-        }
+        Vector(usize reserve = 0);
 
-        void push_back(T elem) {
-
-        }
+        void push_back(T elem);
     };
 }

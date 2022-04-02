@@ -1,7 +1,7 @@
 #pragma once
 
 namespace kstd {
-    struct Mutex {
+    struct Spinlock {
         volatile bool locked = false;
 
         inline void lock() volatile {

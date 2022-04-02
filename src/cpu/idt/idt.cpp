@@ -1,8 +1,11 @@
 #include <cpu/idt/idt.hpp>
+#include <cpu/cpu.hpp>
+#include <mem/vmm.hpp>
 #include <kstd/cstdio.hpp>
+#include <panic.hpp>
 
 namespace cpu {
-    [[gnu::aligned(16)]] static IDTEntry idt[256] = { 0 };
+    [[gnu::aligned(16)]] static IDTEntry idt[256];
     static IDTR idtr;
     static IDTHandler idt_handlers[256];
 
@@ -48,13 +51,21 @@ namespace cpu {
         const char *err_name = frame->vec < 19 ? exception_strings[frame->vec] : "Reserved";
         kstd::printf("\nCPU Exception: %s (%#lX)\n", err_name, frame->vec);
         if (frame->err) kstd::printf("Error code: %#04lX\n", frame->err);
+        if (frame->vec == 0xE) kstd::printf("CR2=%016lX\n",  cpu::read_cr2());
         kstd::printf("RAX=%016lX RBX=%016lX RCX=%016lX RDX=%016lX\n", frame->rax, frame->rbx, frame->rcx, frame->rdx);
         kstd::printf("RSI=%016lX RDI=%016lX RBP=%016lX RSP=%016lX\n", frame->rsi, frame->rdi, frame->rbp, frame->rsp);
         kstd::printf(" R8=%016lX  R9=%016lX R10=%016lX R11=%016lX\n", frame->r8, frame->r9, frame->r10, frame->r11);
         kstd::printf("R12=%016lX R13=%016lX R14=%016lX R15=%016lX\n", frame->r12, frame->r13, frame->r14, frame->r15);
         kstd::printf("RIP=%016lX RFLAGS=%016lX\n", frame->rip, frame->rflags);
-        kstd::printf("[ .. ] Cannot recover, hanging\n");
-        for (;;) asm("hlt");
+        panic("Cannot recover from CPU exception that happened in the kernel");
+    }
+
+    static void page_fault_handler(InterruptFrame *frame) {
+        u64 cr2 = cpu::read_cr2();
+        if (mem::vmm::try_demand_page(cr2))
+            exception_handler(frame);
+        // else
+        //     kstd::printf("Demand paged %#lX\n", cr2);
     }
 
     extern "C" void __idt_handler_common(InterruptFrame *frame) {
@@ -66,7 +77,7 @@ namespace cpu {
             load_idt_entry(i, __idt_wrappers[i], IDTType::INTERRUPT);
         
         for (int i = 0; i < 32; i++)
-            load_idt_handler(i, exception_handler);
+            load_idt_handler(i, i == 0xE ? page_fault_handler : exception_handler);
 
         idtr.limit = sizeof(idt) - 1;
         idtr.base = (u64)&idt;
