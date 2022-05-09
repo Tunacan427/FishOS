@@ -1,8 +1,10 @@
 #include <acpi/tables.hpp>
-#include <panic.hpp>
 #include <kstd/cstdlib.hpp>
 #include <kstd/cstdio.hpp>
-#include <mem/vmm.hpp>
+#include <kstd/vector.hpp>
+#include <cpu/interrupts/interrupts.hpp>
+#include <cpu/interrupts/apic.hpp>
+#include <sched/timer/hpet.hpp>
 
 namespace acpi {
     bool do_checksum(uptr table, usize size) {
@@ -53,40 +55,85 @@ namespace acpi {
     }
 
     void parse_sdt(SDT *sdt) {
-        u64 hhdm = mem::vmm::get_hhdm();
         kstd::printf("[INFO] Found table with signature: %.*s\n", 4, sdt->signature);
         if (!do_checksum((uptr)sdt, sdt->size))
             panic("ACPI table with signature %.*s has incorrect checksum", 4, sdt->signature);
-        if (!kstd::memcmp(sdt->signature, "APIC", 4)) {
-            auto madt = (MADT*)sdt;
-            kstd::printf("[INFO] Parsing MADT, LAPIC addr: %#lX (might be overridden)\n", madt->lapic_addr + hhdm);
-            auto entry = (MADT::Entry*)((uptr)madt + sizeof(MADT));
-            for (; (uptr)entry < (uptr)sdt + sdt->size; entry = (MADT::Entry*)((uptr)entry + entry->size)) {
-                switch (entry->type) {
-                case MADT::LAPIC: {
-                    auto lapic = (MADT::EntryLAPIC*)entry;
-                    kstd::printf("[INFO] LAPIC | ID: %d, Processor ID: %d\n", lapic->processor_id, lapic->lapic_id);
-                    break;
+        
+        if (!kstd::memcmp(sdt->signature, "APIC", 4))
+            return parse_madt((MADT*)sdt);
+        
+        if (!kstd::memcmp(sdt->signature, "HPET", 4))
+            return parse_hpet((HPET*)sdt);
+    }
+
+    void parse_madt(MADT *madt) {
+        using namespace cpu::interrupts;
+        uptr hhdm = mem::vmm::get_hhdm();
+        kstd::printf("[INFO] Parsing MADT, LAPIC phy addr: %#X (might be overridden)\n", madt->lapic_addr);
+
+        for (auto entry = (MADT::Entry*)((uptr)madt + sizeof(MADT)); (uptr)entry < (uptr)madt + madt->size; entry = (MADT::Entry*)((uptr)entry + entry->size)) {
+            if (entry->type == MADT::LAPIC) {
+                auto lapic_entry = (MADT::EntryLAPIC*)entry;
+                kstd::printf("[INFO] LAPIC | ID: %d, Processor ID: %d\n", lapic_entry->processor_id, lapic_entry->lapic_id);
+                lapics().push_back((LAPIC) { lapic_entry->lapic_id, lapic_entry->processor_id });
+            } else if (entry->type == MADT::IOAPIC) {
+                auto ioapic_entry = (MADT::EntryIOAPIC*)entry;
+                kstd::printf("[INFO] IOAPIC | ID: %d, Phy Addr: %#X, GSI base: %d\n", ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
+                mem::vmm::map_page(ioapic_entry->ioapic_addr, ioapic_entry->ioapic_addr + hhdm, PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE | PAGE_CACHE_DISABLE);
+                IOAPIC ioapic(ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
+                ioapics().push_back(ioapic);
+            } else if (entry->type == MADT::IOAPIC_IRQ_SOURCE_OVERRIDE) {
+                auto override_entry = (MADT::EntryIOAPICIRQSourceOverride*)entry;
+                kstd::printf("[INFO] IOAPIC IRQ Source Override | IRQ: %d, GSI: %d, Flags: %x\n", override_entry->irq_source, override_entry->gsi, override_entry->flags);
+                override_irq_source(override_entry->irq_source, override_entry->gsi, override_entry->flags);
+            } else if (entry->type == MADT::LAPIC_NMI) {
+                auto nmi_entry = (MADT::EntryLAPICNMI*)entry;
+                kstd::printf("[INFO] LAPIC NMI | Processor ID: %d, LINT%d, Flags: %x\n", nmi_entry->processor_id, nmi_entry->lint, nmi_entry->flags);
+            } else if (entry->type == MADT::LAPIC_ADDR_OVERRIDE) {
+                auto override_entry = (MADT::EntryLAPICAddressOverride*)entry;
+                kstd::printf("[INFO] LAPIC Addr Override | Phy Addr: %#lX\n", override_entry->lapic_addr);
+            } else {
+                kstd::printf("[INFO] Found unknown entry, type: %d\n", entry->type);
+            }
+        }
+
+        LAPIC::prepare();
+
+        // set the NMI LINT
+        for (auto entry = (MADT::Entry*)((uptr)madt + sizeof(MADT)); (uptr)entry < (uptr)madt + madt->size; entry = (MADT::Entry*)((uptr)entry + entry->size)) {
+            if (entry->type == MADT::LAPIC_NMI) {
+                auto nmi_entry = (MADT::EntryLAPICNMI*)entry;
+                LAPIC bsp;
+                for (auto &lapic : lapics()) {
+                    if (lapic.id == LAPIC::read_id()) {
+                        bsp = lapic;
+                        break;
+                    }
                 }
-                case MADT::IOAPIC: {
-                    auto ioapic = (MADT::EntryIOAPIC*)entry;
-                    kstd::printf("[INFO] IOAPIC | ID: %d, Addr: %#lX, GSI base: %d\n", ioapic->ioapic_id, ioapic->ioapic_addr + hhdm, ioapic->gsi_base);
-                    break;
-                }
-                case MADT::IOAPIC_IRQ_SOURCE_OVERRIDE: {
-                    auto override = (MADT::EntryIOAPICIRQSourceOverride*)entry;
-                    kstd::printf("[INFO] IOAPIC IRQ Source Override | IRQ: %d, Bus: %d, GSI: %d\n", override->irq_source, override->bus_source, override->gsi);
-                    break;
-                }
-                case MADT::LAPIC_NMI: {
-                    auto nmi = (MADT::EntryLAPICNMI*)entry;
-                    kstd::printf("[INFO] LAPIC NMI | Processor ID: %d, LINT#: %d\n", nmi->processor_id, nmi->lint);
-                    break;
-                }
-                default:
-                    kstd::printf("[INFO] Found unknown entry, type: %d\n", entry->type);
+
+                if (nmi_entry->processor_id == 0xFF || nmi_entry->processor_id == bsp.acpi_id) {
+                    bool active_low = (nmi_entry->flags & 0b11) == 0b11;
+                    bool level_trigger = (nmi_entry->flags & 0b1100) == 0b1100;
+                    // set the NMI LINT to vector 0xFE
+                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::Reg::LVT_LINT1 : LAPIC::Reg::LVT_LINT0, 0xFE, true, active_low, level_trigger, false);
+                    // mask the other LINT
+                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::Reg::LVT_LINT0 : LAPIC::Reg::LVT_LINT1, 0, false, false, false, true);
                 }
             }
         }
+
+        // mask the other lvt interrupts
+        LAPIC::set_vector(LAPIC::Reg::LVT_CMCI, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::Reg::LVT_TIMER, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::Reg::LVT_PERF, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::Reg::LVT_THERMAL, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::Reg::LVT_ERROR, 0, false, false, false, true);
+
+        LAPIC::enable();
+    }
+
+    void parse_hpet(HPET *table) {
+        kstd::printf("[INFO] Parsing HPET\n");
+        sched::timer::hpet::init(table);
     }
 }

@@ -1,5 +1,6 @@
 #include <kstd/cstdio.hpp>
-#include <ioports.hpp>
+#include <kstd/lock.hpp>
+#include <terminal.hpp>
 
 static inline usize num_digits(u64 x, u64 b = 10) {
     usize i = 0;
@@ -8,12 +9,16 @@ static inline usize num_digits(u64 x, u64 b = 10) {
 }
 
 namespace kstd {
+    static kstd::Spinlock print_lock;
+
     int putchar(char c) {
-        io::outb(0x3F8, c); // output to qemu serial console
+        terminal::write_char(c);
         return c;
     }
 
     int vprintf(const char *format, va_list list) {
+        LockGuard<Spinlock> guard(print_lock);
+        
         int written = 0;
         for (int i = 0; format[i]; i++) {
             bool alt_form = false;

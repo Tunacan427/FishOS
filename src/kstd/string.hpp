@@ -2,13 +2,13 @@
 
 #include <kstd/types.hpp>
 #include <kstd/cstdlib.hpp>
+#include <kstd/cstring.hpp>
 
 namespace kstd {
     template<typename T>
-    class Vector {
+    class BasicString {
         T *buffer;
-        usize size;
-        usize reserved;
+        usize len;
     public:
         struct iterator {
             using value_type = T;
@@ -33,28 +33,32 @@ namespace kstd {
             pointer ptr;
         };
 
-        Vector(usize reserve = 0) : size(0), reserved(reserve) {
-            buffer = (T*)(reserve ? kstd::malloc(reserve * sizeof(T)) : nullptr);
+        BasicString() : buffer(nullptr), len(0) {}
+
+        BasicString(const char *cstr) {
+            len = kstd::strlen(cstr);
+            buffer = kstd::malloc(len + 1);
+            kstd::memcpy(buffer, cstr, len + 1);
         }
         
-        ~Vector() {
+        ~BasicString() {
             kstd::free(buffer);
         }
 
-        T* operator[](usize index) const {
-            return index < size ? buffer[index] : nullptr;
-        }
+        constexpr usize size() const noexcept { return len; }
+        constexpr usize length() const noexcept { return len; }
 
-        void push_back(T elem) {
-            if (size == reserved) {
-                reserved++;
-                buffer = (T*)kstd::realloc(buffer, reserved * sizeof(T));
-            }
-            buffer[size] = elem;
-            size++;
+        T& operator[](usize index) const {
+            return index < len ? buffer[index] : nullptr;
         }
         
         iterator begin() noexcept { return iterator(buffer); }
-        iterator end() noexcept { return iterator(buffer + size); }
+        iterator end() noexcept { return iterator(buffer + len + 1); }
+
+        constexpr const T& front() const { return buffer[0]; }
+        constexpr const T& back() const { return buffer[len - 1]; }
     };
+
+    using String = BasicString<char>;
+    using U8String = BasicString<char8_t>;
 }

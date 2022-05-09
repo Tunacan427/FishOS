@@ -1,11 +1,11 @@
 #pragma once
 
-#include <types.hpp>
-#include <stivale2.h>
+#include <kstd/types.hpp>
 #include <kstd/bitmap.hpp>
+#include <limine.hpp>
 
 namespace mem::pmm {
-    void init(uptr hhdm, stivale2_struct_tag_memmap *tag_mmap);
+    void init(uptr hhdm, limine_memmap_response *memmap_res);
 
     kstd::Bitmap* get_bitmap();
     usize get_total_mem();

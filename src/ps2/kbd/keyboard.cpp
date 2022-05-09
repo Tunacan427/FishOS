@@ -1,8 +1,7 @@
 #include <ps2/kbd/keyboard.hpp>
-#include <ioports.hpp>
-#include <cpu/pic/pic.hpp>
+#include <cpu/cpu.hpp>
+#include <cpu/interrupts/interrupts.hpp>
 #include <kstd/cstdio.hpp>
-#include <cpu/idt/idt.hpp>
 
 namespace ps2::kbd {
     const char map[128] = {
@@ -44,20 +43,19 @@ namespace ps2::kbd {
         0
     };
 
-    static void irq(cpu::InterruptFrame *frame) {
-        u8 scancode = io::inb(0x60);
+    static void irq(cpu::interrupts::InterruptFrame *frame) {
+        u8 scancode = cpu::in<u8>(0x60);
 
         if (scancode & 128) // release scancode, ignored
             goto end;
         
         kstd::putchar(map[scancode]);
     end:
-        cpu::pic::send_eoi(1);
+        cpu::interrupts::eoi();
     }
 
-    void setup() {
-        cpu::pic::clear_mask(1);
-        cpu::load_idt_handler(33, irq);
-        io::inb(0x60); // drain buffer
+    void init() {
+        cpu::interrupts::register_irq(1, irq);
+        cpu::in<u8>(0x60); // drain buffer
     }
 }

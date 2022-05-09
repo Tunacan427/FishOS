@@ -1,6 +1,9 @@
 #pragma once
 
-#include <types.hpp>
+#include <kstd/types.hpp>
+#include <mem/vmm.hpp>
+#include <cpu/cpu.hpp>
+#include <panic.hpp>
 
 namespace acpi {
     bool do_checksum(uptr table, usize size);
@@ -33,6 +36,47 @@ namespace acpi {
         char creator_id[4];
         u32 creator_revision;
     };
+
+    struct [[gnu::packed]] GenericAddr {
+        enum AddressSpace : u8 {
+            SYSTEM_MEM, 
+            SYSTEM_IO, 
+            PCI_CONFIG,
+            PCI_BAR = 6
+        };
+
+        AddressSpace address_space;
+        u8 bit_width;
+        u8 bit_offset;
+        u8 access_size;
+        u64 addr;
+
+        template<typename T>
+        void write(u64 offset, T val) {
+            switch (this->address_space) {
+            case SYSTEM_MEM:
+                *(volatile T*)(addr + offset + mem::vmm::get_hhdm()) = val;
+                break;
+            case SYSTEM_IO:
+                cpu::out<T>(addr + offset, val);
+                break;
+            default:
+                panic("Unsupported GenericAddr address space: %#X", u8(address_space));
+            }
+        }
+
+        template<typename T>
+        T read(u64 offset) {
+            switch (this->address_space) {
+            case SYSTEM_MEM:
+                return *(volatile T*)(addr + offset + mem::vmm::get_hhdm());
+            case SYSTEM_IO:
+                return cpu::in<T>(addr + offset);
+            default:
+                panic("Unsupported GenericAddr address space: %#X", u8(address_space));
+            }
+        }
+    };
     
     void parse_sdt(SDT *sdt);
     
@@ -43,6 +87,18 @@ namespace acpi {
     struct [[gnu::packed]] XSDT : SDT {
         u64 sdt_array[];
     };
+    
+    struct [[gnu::packed]] HPET : SDT { 
+        u8 hardware_rev_id;
+        u8 info;
+        u16 pci_vendor_id;
+        GenericAddr address;
+        u8 hpet_number;
+        u16 minimum_tick;
+        u8 page_protection;
+    };
+
+    void parse_hpet(HPET *hpet);
     
     struct [[gnu::packed]] MADT : SDT {
         u32 lapic_addr;
@@ -108,4 +164,6 @@ namespace acpi {
             u32 acpi_id;
         };
     };
+
+    void parse_madt(MADT *madt);
 }

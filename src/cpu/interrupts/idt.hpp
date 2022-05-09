@@ -1,8 +1,8 @@
 #pragma once
 
-#include <types.hpp>
+#include <kstd/types.hpp>
 
-namespace cpu {
+namespace cpu::interrupts {
     struct [[gnu::packed]] IDTR {
         u16 limit;
         u64 base;
@@ -32,7 +32,8 @@ namespace cpu {
 
     typedef void (*IDTHandler)(InterruptFrame*);
 
-    void load_idt_entry(u16 index, void (*wrapper)(), IDTType type);
-    void load_idt_handler(u16 index, IDTHandler handler);
+    u8 allocate_vector();
+    void load_idt_entry(u8 index, void (*wrapper)(), IDTType type);
+    void load_idt_handler(u8 index, IDTHandler handler);
     void load_idt();
 }

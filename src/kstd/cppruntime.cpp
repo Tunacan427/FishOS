@@ -2,7 +2,7 @@
 #include <kstd/lock.hpp>
 #include <panic.hpp>
 
-static volatile kstd::Spinlock static_init_lock;
+static kstd::Spinlock static_init_lock;
 
 using __guard = u64;
 

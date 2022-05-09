@@ -35,8 +35,16 @@ SECTIONS
     .stivale2hdr : {
         KEEP(*(.stivale2hdr))
     } :rodata
- 
-    .rodata : {
+
+   .rodata : {
+        start_ctors = .;
+        *(SORT(.ctors*))  /* Note the "SORT" */
+        end_ctors = .;
+
+        start_dtors = .;
+        *(SORT(.dtors*))
+        end_dtors = .;
+
         *(.rodata .rodata.*)
     } :rodata
  

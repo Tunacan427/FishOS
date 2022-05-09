@@ -1,24 +1,22 @@
 #pragma once
 
-#include "stivale2.h"
-#include <types.hpp>
+#include <kstd/types.hpp>
+#include <limine.hpp>
 
-#define PAGE_PRESENT 1 << 0
-#define PAGE_WRITABLE 1 << 1
-#define PAGE_USER 1 << 2
-#define PAGE_WRITE_THROUGH 1 << 3
-#define PAGE_CACHE_DISABLE 1 << 4
-#define PAGE_ACCESSED 1 << 5
-#define PAGE_DIRTY 1 << 6
-#define PAGE_ATTRIBUTE_TABLE 1 << 7
-#define PAGE_GLOBAL 1 << 8
-#define PAGE_WRITE_COMBINING PAGE_ATTRIBUTE_TABLE | PAGE_CACHE_DISABLE
-#define PAGE_NO_EXECUTE (u64)1 << 63
-
-#define PAGE_DEMAND 1 << 9
+#define PAGE_PRESENT (1 << 0)
+#define PAGE_WRITABLE (1 << 1)
+#define PAGE_USER (1 << 2)
+#define PAGE_WRITE_THROUGH (1 << 3)
+#define PAGE_CACHE_DISABLE (1 << 4)
+#define PAGE_ACCESSED (1 << 5)
+#define PAGE_DIRTY (1 << 6)
+#define PAGE_ATTRIBUTE_TABLE (1 << 7)
+#define PAGE_GLOBAL (1 << 8)
+#define PAGE_WRITE_COMBINING (PAGE_ATTRIBUTE_TABLE | PAGE_CACHE_DISABLE)
+#define PAGE_NO_EXECUTE ((u64)1 << 63)
 
 namespace mem::vmm {
-    void init(uptr hhdm_base, stivale2_struct_tag_memmap *tag_mmap, stivale2_struct_tag_pmrs *tag_pmrs, stivale2_struct_tag_kernel_base_address *tag_base_addr);
+    void init(uptr hhdm_base, limine_memmap_response *memmap_res, limine_kernel_address_response *kernel_addr_res);
 
     uptr get_hhdm();
 

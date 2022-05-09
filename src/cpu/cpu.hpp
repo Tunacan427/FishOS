@@ -1,9 +1,17 @@
 #pragma once
 
-#include <types.hpp>
-#include <cpuid.h>
+#include <kstd/types.hpp>
+#include <panic.hpp>
 
 namespace cpu {
+    static inline void cli() {
+        asm volatile("cli");
+    }
+
+    static inline void sti() {
+        asm volatile("sti");
+    }
+
     static inline void cpuid(u32 leaf, u32 subleaf, u32 *eax, u32 *ebx, u32 *ecx, u32 *edx) {
         asm volatile("cpuid" : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx) : "a" (leaf), "c" (subleaf));
     }
@@ -40,15 +48,62 @@ namespace cpu {
         return cr2;
     }
 
-    static inline u32 bswap(u32 val) {
-        volatile u32 result;
+    static inline void invlpg(void *m) {
+        asm volatile("invlpg (%0)" : : "r" (m) : "memory");
+    }
+    
+    template<kstd::Integral T> 
+    static inline T bswap(T val) {
+        volatile T result;
         asm volatile("bswap %0" : "=r" (result) : "r" (val));
         return result;
     }
+    
+    template<kstd::Integral T> static inline void out(const u16 port, const T val) {
+        panic("cpu::out must be used with u8, u16, or u32");
+    }
 
-    static inline u64 bswap(u64 val) {
-        volatile u64 result;
-        asm volatile("bswap %0" : "=r" (result) : "r" (val));
-        return result;
+    template<>
+    inline void out<u8>(const u16 port, const u8 val) {
+        asm volatile("outb %0, %1" : : "a" (val), "Nd" (port));
+    }
+
+    template<>
+    inline void out<u16>(const u16 port, const u16 val) {
+        asm volatile("outw %0, %1" : : "a" (val), "Nd" (port));
+    }
+
+    template<>
+    inline void out<u32>(const u16 port, const u32 val) {
+        asm volatile("outl %0, %1" : : "a" (val), "Nd" (port));
+    }
+    
+    template<kstd::Integral T> static inline T in(const u16 port) {
+        panic("cpu::in must be used with u8, u16, or u32");
+    }
+
+    template<>
+    inline u8 in<u8>(const u16 port) {
+        volatile u8 ret;
+        asm volatile("inb %1, %0" : "=a" (ret) : "Nd" (port));
+        return ret;
+    }
+
+    template<>
+    inline u16 in<u16>(const u16 port) {
+        volatile u16 ret;
+        asm volatile("inw %1, %0" : "=a" (ret) : "Nd" (port));
+        return ret;
+    }
+
+    template<>
+    inline u32 in<u32>(const u16 port) {
+        volatile u32 ret;
+        asm volatile("inl %1, %0" : "=a" (ret) : "Nd" (port));
+        return ret;
+    }
+
+    static inline void io_wait() {
+        out<u8>(0x80, 0); 
     }
 }

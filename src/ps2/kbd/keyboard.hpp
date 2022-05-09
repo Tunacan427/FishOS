@@ -1,7 +1,7 @@
 #pragma once
 
-#include <types.hpp>
+#include <kstd/types.hpp>
 
 namespace ps2::kbd {
-    void setup();
+    void init();
 }

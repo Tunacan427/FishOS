@@ -1,4 +1,3 @@
-#include "stivale2.h"
 #include <mem/vmm.hpp>
 #include <mem/pmm.hpp>
 #include <panic.hpp>
@@ -6,20 +5,25 @@
 #include <kstd/cstdio.hpp>
 #include <kstd/cstring.hpp>
 #include <cpu/cpu.hpp>
+#include <limine.hpp>
 
 static inline usize align_page(usize i) {
     return i % 0x1000 ? ((i / 0x1000) + 1) * 0x1000 : i;
 }
 
 namespace mem::vmm {
-    static volatile kstd::Spinlock vmm_lock;
+    const usize heap_size = 1024 * 1024 * 1024;
+    const uptr heap_begin = ~(uptr)0 - heap_size - 0x1000;
+    const uptr heap_end = heap_begin + heap_size;
+    
+    static kstd::Spinlock vmm_lock;
     [[gnu::aligned(0x1000)]] static u64 PML4[512];
     static uptr hhdm;
 
-    void init(uptr hhdm_base, stivale2_struct_tag_memmap *tag_mmap, stivale2_struct_tag_pmrs *tag_pmrs, stivale2_struct_tag_kernel_base_address *tag_base_addr) {
+    void init(uptr hhdm_base, limine_memmap_response *memmap_res, limine_kernel_address_response *kernel_addr_res) {
         hhdm = hhdm_base;
-        uptr kernel_phy_base = tag_base_addr->physical_base_address;
-        uptr kernel_virt_base = tag_base_addr->virtual_base_address;
+        uptr kernel_phy_base = kernel_addr_res->physical_base;
+        uptr kernel_virt_base = kernel_addr_res->virtual_base;
 
         u64 cr4 = cpu::read_cr4();
         kstd::printf("[INFO] Original CR4: %#lX\n", cr4);
@@ -54,30 +58,38 @@ namespace mem::vmm {
         // 0: WB  1: WT  2: UC-  3: UC  4: WB  5: WT  6: WC  7: WP
         cpu::write_msr(0x0277, (6 << 0) | (4 << 8) | (7 << 16) | (0 << 24) | (6l << 32) | (4l << 40) | (1l << 48) | (5l << 56));
         
+        usize kernel_size = 0;
+
         kstd::printf("[INFO] Physical memory map:\n");
-        for (u64 i = 0; i < tag_mmap->entries; i++) {
-            auto entry = tag_mmap->memmap[i];
+        for (u64 i = 0; i < memmap_res->entry_count; i++) {
+            auto entry = memmap_res->entries[i];
             const char *entry_name;
             u64 flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
 
-            switch (entry.type) {
-            case STIVALE2_MMAP_USABLE: entry_name = "Usable"; break;
-            case STIVALE2_MMAP_RESERVED: entry_name = "Reserved"; break;
-            case STIVALE2_MMAP_ACPI_RECLAIMABLE: entry_name = "ACPI Reclaimable"; break;
-            case STIVALE2_MMAP_ACPI_NVS: entry_name = "ACPI NVS"; break;
-            case STIVALE2_MMAP_BAD_MEMORY: entry_name = "Bad Memory"; break;
-            case STIVALE2_MMAP_BOOTLOADER_RECLAIMABLE: entry_name = "Bootloader Reclaimable"; break;
-            case STIVALE2_MMAP_KERNEL_AND_MODULES: entry_name = "Kernel and Modules"; break;
-            case STIVALE2_MMAP_FRAMEBUFFER: entry_name = "Framebuffer"; flags |= PAGE_WRITE_COMBINING; break;
+            switch (entry->type) {
+            case LIMINE_MEMMAP_USABLE: entry_name = "Usable"; break;
+            case LIMINE_MEMMAP_RESERVED: entry_name = "Reserved"; break;
+            case LIMINE_MEMMAP_ACPI_RECLAIMABLE: entry_name = "ACPI Reclaimable"; break;
+            case LIMINE_MEMMAP_ACPI_NVS: entry_name = "ACPI NVS"; break;
+            case LIMINE_MEMMAP_BAD_MEMORY: entry_name = "Bad Memory"; break;
+            case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE: entry_name = "Bootloader Reclaimable"; flags &= ~PAGE_NO_EXECUTE; break;
+            case LIMINE_MEMMAP_KERNEL_AND_MODULES: entry_name = "Kernel and Modules"; kernel_size = entry->length; break;
+            case LIMINE_MEMMAP_FRAMEBUFFER: entry_name = "Framebuffer"; flags |= PAGE_WRITE_COMBINING; break;
             default: entry_name = "Unknown";
             }
 
-            map_pages(entry.base, entry.base + hhdm, entry.length, flags);
+            kstd::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
 
-            kstd::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry.base, entry.length / 1024);
+            if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE) {
+                map_pages(entry->base, entry->base + hhdm, entry->length, flags);
+                if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER)
+                    map_pages(entry->base, entry->base, entry->length, flags);
+            }
         }
 
-        kstd::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", tag_base_addr->physical_base_address, tag_base_addr->virtual_base_address);
+        kstd::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
+        
+        /*
         kstd::printf("[INFO] Kernel PMRs:\n");
         for (usize i = 0; i < tag_pmrs->entries; i++) {
             auto pmr = tag_pmrs->pmrs[i];
@@ -89,11 +101,13 @@ namespace mem::vmm {
             
             kstd::printf("       base %#lX, size: %ld KiB, permissions: %ld\n", pmr.base, pmr.length / 1024, pmr.permissions);
         }
+        */
 
-        const u64 heap_size = 1024 * 1024 * 1024;
+        map_pages(kernel_phy_base, kernel_virt_base, kernel_size, PAGE_PRESENT | PAGE_WRITABLE);
+/*
         map_pages(0, ~(u64)0 - heap_size - 0x1000, heap_size + 0x1000, PAGE_DEMAND);
-
-        cpu::write_cr3((u64)&PML4[0] - kernel_virt_base + kernel_phy_base);
+*/
+        cpu::write_cr3((uptr)&PML4[0] - kernel_virt_base + kernel_phy_base);
     }
 
     uptr get_hhdm() {
@@ -108,7 +122,7 @@ namespace mem::vmm {
             // kstd::printf("Page table exists, next table at %#lX\n", (u64)current_table);
         } else {
             next_table = (u64*)pmm::alloc_page();
-            current_table[index] = (u64)next_table | PAGE_PRESENT;
+            current_table[index] = (u64)next_table | PAGE_PRESENT | PAGE_WRITABLE;
             next_table = (u64*)((uptr)next_table + hhdm);
             kstd::memset(next_table, 0, 0x1000);
             // kstd::printf("Page table created at %#lX, current entry %#lX\n", (u64)next_table, current_entry);
@@ -117,7 +131,7 @@ namespace mem::vmm {
     }
 
     void map_page(uptr phy, uptr virt, u64 flags) {
-        vmm_lock.lock();
+        kstd::LockGuard<kstd::Spinlock> guard(vmm_lock);
         u64 *current_table = (u64*)PML4;
         // kstd::printf("Map page phy %#lX virt %#lX\n", phy, virt);
 
@@ -125,9 +139,10 @@ namespace mem::vmm {
         current_table = page_table_next_level(current_table, (virt >> 30) & 0x1FF);
         current_table = page_table_next_level(current_table, (virt >> 21) & 0x1FF);
 
-        // at this point current_table is the PT
-        current_table[virt >> 12 & 0x1FF] = (phy & 0x000FFFFFFFFFF000) | flags;
-        vmm_lock.unlock();
+        u64 *entry = &current_table[virt >> 12 & 0x1FF];
+        bool replaced = *entry != 0;
+        *entry = (phy & 0x000FFFFFFFFFF000) | flags;
+        if (replaced) cpu::invlpg((void*)virt);
     }
 
     void map_pages(uptr phy, uptr virt, usize size, u64 flags) {
@@ -138,8 +153,7 @@ namespace mem::vmm {
     }
 
     bool try_demand_page(uptr virt) {
-        vmm_lock.lock();
-        bool failed = true;
+        kstd::LockGuard<kstd::Spinlock> guard(vmm_lock);
         u64 *current_table = (u64*)PML4;
 
         current_table = page_table_next_level(current_table, (virt >> 39) & 0x1FF);
@@ -148,12 +162,14 @@ namespace mem::vmm {
 
         u64 *entry = &current_table[virt >> 12 & 0x1FF];
 
-        if (*entry & PAGE_DEMAND) {
-            *entry = ((u64)pmm::alloc_page() & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
-            failed = false;
+        if (!(*entry & PAGE_PRESENT)) {
+            if (virt >= heap_begin && virt <= heap_end) // kernel heap, allocate a new page
+                *entry = ((u64)pmm::alloc_page() & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
+            else // direct map
+                *entry = ((virt - hhdm) & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE;
+            return false;
         }
 
-        vmm_lock.unlock();
-        return failed;
+        return true;
     }
 }

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdarg.h>
-#include <types.hpp>
+#include <kstd/types.hpp>
+#include <gfx/framebuffer.hpp>
 
 namespace kstd {
     int putchar(char c);

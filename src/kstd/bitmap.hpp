@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types.hpp>
+#include <kstd/types.hpp>
 
 namespace kstd {
     struct Bitmap {
