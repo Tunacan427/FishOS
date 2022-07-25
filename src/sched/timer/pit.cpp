@@ -11,7 +11,7 @@ namespace sched::timer::pit {
     static bool sleeping = false;
     static usize sleep_ticks = 0;
 
-    static void irq(interrupts::InterruptFrame *frame) {
+    static void irq(u64 vec, GPRState *frame) {
         if (sleeping) sleep_ticks--;
         interrupts::eoi();
     }

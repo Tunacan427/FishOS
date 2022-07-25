@@ -1,6 +1,9 @@
+#include "mem/vmm.hpp"
 #include <mem/pmm.hpp>
 #include <kstd/lock.hpp>
 #include <kstd/cstdio.hpp>
+#include <kstd/cstring.hpp>
+#include <panic.hpp>
 #include <limine.hpp>
 
 namespace mem::pmm {
@@ -69,23 +72,62 @@ namespace mem::pmm {
         return total_mem_size;
     }
 
-    void *alloc_page() {
-        kstd::LockGuard<kstd::Spinlock> guard(pmm_lock);
+    void* inner_alloc(usize num_pages, usize limit) {
         auto page_bitmap = get_bitmap();
-        for (; page_bitmap_index < page_bitmap->size; page_bitmap_index++) {
-            if (page_bitmap->get(page_bitmap_index)) continue;
-            page_bitmap->set(page_bitmap_index, true);
-            return (void*)(page_bitmap_index * 0x1000);
+        usize pages = 0;
+
+        while (page_bitmap_index < limit) {
+            if (!page_bitmap->get(page_bitmap_index)) {
+                page_bitmap_index++;
+                pages++;
+                if (pages == num_pages) {
+                    usize beginning = page_bitmap_index - num_pages;
+                    for (usize i = beginning; i < page_bitmap_index; i++) {
+                        page_bitmap->set(i, true);
+                    }
+                    return (void*)(beginning * 0x1000);
+                }
+            } else {
+                page_bitmap_index++;
+                pages = 0;
+            }
         }
+
         return nullptr;
     }
 
-    void free_page(void *phy) {
+    void* alloc_pages(usize num_pages) {
+        kstd::LockGuard<kstd::Spinlock> guard(pmm_lock);
+
+        usize last = page_bitmap_index;
+        void *result = inner_alloc(num_pages, get_bitmap()->size);
+
+        if (result == nullptr) {
+            page_bitmap_index = 0;
+            result = inner_alloc(num_pages, last);
+            if (result == nullptr) {
+                panic("Out of memory");
+            }
+        }
+
+        return result;
+    }
+
+    void* calloc_pages(usize num_pages) {
+        void *pages = alloc_pages(num_pages);
+        kstd::memset((void*)((uptr)pages + vmm::get_hhdm()), 0, num_pages * 0x1000);
+        return pages;
+    }
+
+    void free_pages(void *phy, usize num_pages) {
         kstd::LockGuard<kstd::Spinlock> guard(pmm_lock);
         auto page_bitmap = get_bitmap();
+
         usize i = ((uptr)phy) / 0x1000;
         if (i < page_bitmap_index)
             page_bitmap_index = i;
-        page_bitmap->set(i, false);
+        
+        for (; i < num_pages + i; i++)
+            page_bitmap->set(i, false);
     }
 }

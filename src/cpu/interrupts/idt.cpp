@@ -39,32 +39,44 @@ namespace cpu::interrupts {
     }
 
     const char *exception_strings[] = {
-        "Division By Zero",
+        "Division by 0",
         "Debug",
-        "Non Maskable Interrupt",
+        "NMI",
         "Breakpoint",
-        "Into Detected Overflow",
-        "Out of Bounds",
-        "Invalid Opcode",
-        "No Coprocessor",
-        "Double Fault",
-        "Coprocessor Segment Overrun",
-        "Bad TSS",
-        "Segment Not Present",
-        "Stack Fault",
-        "General Protection Fault",
-        "Page Fault",
-        "Unknown Interrupt",
-        "Coprocessor Fault",
-        "Alignment Check",
-        "Machine Check"
+        "Overflow",
+        "Bound range exceeded",
+        "Invalid opcode",
+        "Device not available",
+        "Double fault",
+        "???",
+        "Invalid TSS",
+        "Segment not present",
+        "Stack-segment fault",
+        "General protection fault",
+        "Page fault",
+        "???",
+        "x87 exception",
+        "Alignment check",
+        "Machine check",
+        "SIMD exception",
+        "Virtualisation",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???",
+        "Security"
     };
 
-    static void exception_handler(InterruptFrame *frame) {
-        const char *err_name = frame->vec < 19 ? exception_strings[frame->vec] : "Reserved";
-        kstd::printf("\nCPU Exception: %s (%#lX)\n", err_name, frame->vec);
+    static void exception_handler(u64 vec, GPRState *frame) {
+        const char *err_name = vec < 19 ? exception_strings[vec] : "Reserved";
+        kstd::printf("\nCPU Exception: %s (%#lX)\n", err_name, vec);
         if (frame->err) kstd::printf("Error code: %#04lX\n", frame->err);
-        if (frame->vec == 0xE) kstd::printf("CR2=%016lX\n",  cpu::read_cr2());
+        if (vec == 0xE) kstd::printf("CR2=%016lX\n",  cpu::read_cr2());
         kstd::printf("RAX=%016lX RBX=%016lX RCX=%016lX RDX=%016lX\n", frame->rax, frame->rbx, frame->rcx, frame->rdx);
         kstd::printf("RSI=%016lX RDI=%016lX RBP=%016lX RSP=%016lX\n", frame->rsi, frame->rdi, frame->rbp, frame->rsp);
         kstd::printf(" R8=%016lX  R9=%016lX R10=%016lX R11=%016lX\n", frame->r8, frame->r9, frame->r10, frame->r11);
@@ -73,16 +85,16 @@ namespace cpu::interrupts {
         panic("Cannot recover from CPU exception that happened in the kernel");
     }
 
-    static void page_fault_handler(InterruptFrame *frame) {
+    static void page_fault_handler(u64 vec, GPRState *frame) {
         u64 cr2 = cpu::read_cr2();
         if (mem::vmm::try_demand_page(cr2))
-            exception_handler(frame);
+            exception_handler(vec, frame);
         // else
-            // kstd::printf("Demand paged %#lX\n", cr2);
+        //     kstd::printf("Demand paged %#lX\n", cr2);
     }
 
-    extern "C" void __idt_handler_common(InterruptFrame *frame) {
-        idt_handlers[frame->vec](frame);
+    extern "C" void __idt_handler_common(u64 vec, GPRState *frame) {
+        idt_handlers[vec](vec, frame);
     }
 
     void load_idt() {
@@ -99,8 +111,8 @@ namespace cpu::interrupts {
 
         idtr.limit = sizeof(idt) - 1;
         idtr.base = (u64)&idt;
-        asm volatile("cli;"
-                     "lidt %0;"
-                     "sti;" : : "m" (idtr));
+        cli();
+        asm volatile("lidt %0" : : "m" (idtr));
+        sti();
     }
 }

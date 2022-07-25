@@ -7,6 +7,7 @@ namespace mem {
     // based on https://www.gingerbill.org/article/2021/12/02/memory-allocation-strategies-006/
     class BuddyAlloc {
         BuddyAlloc() {}
+        
     public:
         static constexpr usize alignment = 16;
 

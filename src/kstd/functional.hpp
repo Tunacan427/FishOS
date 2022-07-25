@@ -17,6 +17,7 @@ namespace kstd {
         template<class F>
         class CallableWrapper : public Callable {
             F f;
+
         public:
             CallableWrapper(const F &f) : f(kstd::move(f)) {}
 
@@ -26,6 +27,7 @@ namespace kstd {
         };
 
         Callable *callable;
+        
     public:
         Function() = default;
 

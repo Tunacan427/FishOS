@@ -1,5 +1,7 @@
-%macro pushall 0
-    push rax
+section .text
+extern __idt_handler_common
+__idt_wrapper_common:
+    xchg rax, [rsp] ; swap rax with the vector number which was pushed in the wrapper 
     push rbx
     push rcx
     push rdx
@@ -14,9 +16,24 @@
     push r13
     push r14
     push r15
-%endmacro
 
-%macro popall 0
+    mov rdi, rax ; put the vector number into the first parameter
+    mov rsi, rsp ; put the interrupt frame pointer into the second parameter
+
+    mov eax, es
+    push rax
+    mov eax, ds
+    push rax
+
+    sub rsi, 16
+
+    call __idt_handler_common
+
+    pop rax
+    mov ds, eax
+    pop rax
+    mov es, eax
+
     pop r15
     pop r14
     pop r13
@@ -32,16 +49,8 @@
     pop rcx
     pop rbx
     pop rax
-%endmacro
 
-section .text
-extern __idt_handler_common
-__idt_wrapper_common:
-    pushall
-    mov rdi, rsp
-    call __idt_handler_common
-    popall
-    add rsp, 16
+    add rsp, 8
     iretq
 
 %define has_errcode(v) (v == 8 || (v >= 10 && v <= 14) || v == 17 || v == 21)

@@ -9,6 +9,7 @@ namespace kstd {
         T *buffer;
         usize size;
         usize reserved;
+        
     public:
         struct iterator {
             using value_type = T;

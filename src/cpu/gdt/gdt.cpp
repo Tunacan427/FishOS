@@ -1,14 +1,14 @@
 #include <cpu/gdt/gdt.hpp>
 
 namespace cpu {
-    [[gnu::aligned(8)]] static GDTEntry gdt[7];
+    [[gnu::aligned(8)]] static GDTEntry gdt[9];
     static GDTR gdtr;
 
     void load_gdt() {
         // null descriptor
         gdt[0] = { 0 };
 
-        // 16-bit kernel code
+        // 16-bit ring 0 code
         gdt[1] = {
             .limit = 0xFFFF,
             .base_low = 0,
@@ -18,7 +18,7 @@ namespace cpu {
             .base_high = 0
         };
 
-        // 16-bit kernel data
+        // 16-bit ring 0 data
         gdt[2] = {
             .limit = 0xFFFF,
             .base_low = 0,
@@ -28,7 +28,7 @@ namespace cpu {
             .base_high = 0
         };
 
-        // 32-bit kernel code
+        // 32-bit ring 0 code
         gdt[3] = {
             .limit = 0xFFFF,
             .base_low = 0,
@@ -38,7 +38,7 @@ namespace cpu {
             .base_high = 0
         };
 
-        // 32-bit kernel data
+        // 32-bit ring 0 data
         gdt[4] = {
             .limit = 0xFFFF,
             .base_low = 0,
@@ -65,6 +65,26 @@ namespace cpu {
             .base_mid = 0,
             .access = 0b10010010,
             .granularity = 0,
+            .base_high = 0
+        };
+
+        // 64-bit user data
+        gdt[7] = {
+            .limit = 0,
+            .base_low = 0,
+            .base_mid = 0,
+            .access = 0b11110010,
+            .granularity = 0,
+            .base_high = 0
+        };
+
+        // 64-bit user code
+        gdt[8] = {
+            .limit = 0,
+            .base_low = 0,
+            .base_mid = 0,
+            .access = 0b11111010,
+            .granularity = 0b00100000,
             .base_high = 0
         };
 

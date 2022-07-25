@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cpu/cpu.hpp"
 #include <kstd/types.hpp>
 
 namespace kstd {
@@ -19,22 +18,22 @@ namespace kstd {
         }
     };
 
-    template<class> struct IsMutex : public False {};
-    template<> struct IsMutex<Spinlock> : public True {};
-    
-    template<class T> concept Mutex = IsMutex<T>::value;
+    template<class T>
+    concept BasicLockable = requires(T l) {
+        l.lock();
+        l.unlock();
+    };
 
-    template<Mutex M>
+    template<BasicLockable M>
     class LockGuard {
         M &mutex;
+
     public:
         explicit LockGuard(M &m) : mutex(m) {
-            //cpu::out<u8>(0x3f8, 'L');
             mutex.lock();
         }
 
         ~LockGuard() {
-            //cpu::out<u8>(0x3f8, 'U');
             mutex.unlock();
         }
 

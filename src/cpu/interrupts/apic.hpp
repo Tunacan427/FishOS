@@ -4,7 +4,7 @@
 
 namespace cpu::interrupts {
     struct LAPIC {
-        enum class Reg {
+        enum R : u32 {
             ID = 0x20,
             VER = 0x30,
             EOI = 0xB0,
@@ -27,19 +27,18 @@ namespace cpu::interrupts {
         static void prepare();
         static void enable();
         
-        static void write_reg(Reg reg, u32 val);
-        static u32 read_reg(Reg reg);
+        static void write_reg(R reg, u32 val);
+        static u32 read_reg(R reg);
 
         static u32 read_id();
         static void eoi();
 
-        static void set_vector(Reg reg, u8 vector, bool nmi, bool active_low, bool level_trigger, bool mask);
-        static void mask_vector(Reg reg);
-        static void unmask_vector(Reg reg);
+        static void set_vector(R reg, u8 vector, bool nmi, bool active_low, bool level_trigger, bool mask);
+        static void mask_vector(R reg);
+        static void unmask_vector(R reg);
     };
 
-    class IOAPIC {
-    public:
+    struct IOAPIC {
         u8 id;
         u32 gsi_base, max_entries;
         volatile u32 *ioregsel;

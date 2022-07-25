@@ -9,6 +9,7 @@ namespace kstd {
     class BasicString {
         T *buffer;
         usize len;
+        
     public:
         struct iterator {
             using value_type = T;
@@ -35,7 +36,7 @@ namespace kstd {
 
         BasicString() : buffer(nullptr), len(0) {}
 
-        BasicString(const char *cstr) {
+        BasicString(const T *cstr) {
             len = kstd::strlen(cstr);
             buffer = kstd::malloc(len + 1);
             kstd::memcpy(buffer, cstr, len + 1);

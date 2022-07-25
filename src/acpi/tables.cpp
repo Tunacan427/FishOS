@@ -1,3 +1,4 @@
+#include "mem/vmm.hpp"
 #include <acpi/tables.hpp>
 #include <kstd/cstdlib.hpp>
 #include <kstd/cstdio.hpp>
@@ -79,7 +80,7 @@ namespace acpi {
             } else if (entry->type == MADT::IOAPIC) {
                 auto ioapic_entry = (MADT::EntryIOAPIC*)entry;
                 kstd::printf("[INFO] IOAPIC | ID: %d, Phy Addr: %#X, GSI base: %d\n", ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
-                mem::vmm::map_page(ioapic_entry->ioapic_addr, ioapic_entry->ioapic_addr + hhdm, PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE | PAGE_CACHE_DISABLE);
+                mem::vmm::get_kernel_pagemap()->map_page(ioapic_entry->ioapic_addr, ioapic_entry->ioapic_addr + hhdm, PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE | PAGE_CACHE_DISABLE);
                 IOAPIC ioapic(ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
                 ioapics().push_back(ioapic);
             } else if (entry->type == MADT::IOAPIC_IRQ_SOURCE_OVERRIDE) {
@@ -115,19 +116,19 @@ namespace acpi {
                     bool active_low = (nmi_entry->flags & 0b11) == 0b11;
                     bool level_trigger = (nmi_entry->flags & 0b1100) == 0b1100;
                     // set the NMI LINT to vector 0xFE
-                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::Reg::LVT_LINT1 : LAPIC::Reg::LVT_LINT0, 0xFE, true, active_low, level_trigger, false);
+                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::LVT_LINT1 : LAPIC::LVT_LINT0, 0xFE, true, active_low, level_trigger, false);
                     // mask the other LINT
-                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::Reg::LVT_LINT0 : LAPIC::Reg::LVT_LINT1, 0, false, false, false, true);
+                    LAPIC::set_vector(nmi_entry->lint ? LAPIC::LVT_LINT0 : LAPIC::LVT_LINT1, 0, false, false, false, true);
                 }
             }
         }
 
         // mask the other lvt interrupts
-        LAPIC::set_vector(LAPIC::Reg::LVT_CMCI, 0, false, false, false, true);
-        LAPIC::set_vector(LAPIC::Reg::LVT_TIMER, 0, false, false, false, true);
-        LAPIC::set_vector(LAPIC::Reg::LVT_PERF, 0, false, false, false, true);
-        LAPIC::set_vector(LAPIC::Reg::LVT_THERMAL, 0, false, false, false, true);
-        LAPIC::set_vector(LAPIC::Reg::LVT_ERROR, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::LVT_CMCI, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::LVT_TIMER, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::LVT_PERF, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::LVT_THERMAL, 0, false, false, false, true);
+        LAPIC::set_vector(LAPIC::LVT_ERROR, 0, false, false, false, true);
 
         LAPIC::enable();
     }

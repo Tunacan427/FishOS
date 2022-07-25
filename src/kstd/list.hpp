@@ -2,8 +2,7 @@
 
 namespace kstd {
     template<typename T>
-    class LinkedList {
-    public:
+    struct LinkedList {
         class Element {
             Element *next, *prev;
             T data;

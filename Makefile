@@ -56,7 +56,8 @@ runbios: $(ISO)
 	@echo "[QEMU]"
 	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
 		-drive id=disk,file=disk.img,if=virtio,format=raw \
-		-no-reboot -no-shutdown -M smm=off -smp 2 -s 
+		-no-reboot -no-shutdown -M smm=off -s 
+#		-d int
 
 runuefi: installuefi
 	@echo "[QEMU]"

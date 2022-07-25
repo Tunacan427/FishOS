@@ -16,12 +16,19 @@
 #define PAGE_NO_EXECUTE ((u64)1 << 63)
 
 namespace mem::vmm {
+    struct Pagemap {
+        u64 *pml4;
+        bool active;
+
+        void map_page(uptr phy, uptr virt, u64 flags);
+        void map_pages(uptr phy, uptr virt, usize size, u64 flags);
+    };
+
     void init(uptr hhdm_base, limine_memmap_response *memmap_res, limine_kernel_address_response *kernel_addr_res);
+    void activate_pagemap(Pagemap *pagemap);
 
     uptr get_hhdm();
+    Pagemap *get_kernel_pagemap();
 
-    void map_page(uptr phy, uptr virt, u64 flags);
-    void map_pages(uptr phy, uptr virt, usize size, u64 flags);
-    
     bool try_demand_page(uptr virt);
 }

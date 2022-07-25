@@ -18,8 +18,8 @@
 #include <cpu/interrupts/interrupts.hpp>
 #include <sched/timer/pit.hpp>
 #include <sched/timer/apic_timer.hpp>
+#include <sched/sched.hpp>
 #include <terminal.hpp>
-#include <kstd/functional.hpp>
 
 static volatile limine_hhdm_request hhdm_req = {
     .id = LIMINE_HHDM_REQUEST,
@@ -86,12 +86,12 @@ extern "C" [[noreturn]] void _start() {
         .pitch = fb_res->pitch,
         .pixel_width = (u32)fb_res->bpp / 8
     };
-    /*
+/*
     fb.fill_rect(0, 0, fb.width, fb.height, 0xf49b02);
     fb.fill_rect(fb.width / 2 - 50, fb.height / 2 - 25, 100, 50, 0xDB880D);
     terminal::set_width(fb.width / 8 - 2);
     terminal::set_height(fb.height / 16 - 1);
-    */
+*/
     terminal::init(terminal_request.response);
     kstd::printf("[ OK ] Initialized the framebuffer\n");
     
@@ -141,6 +141,9 @@ extern "C" [[noreturn]] void _start() {
 */
     sched::timer::apic_timer::init();
     kstd::printf("[ OK ] Initialized APIC timer\n");
+
+    sched::init();
+    kstd::printf("[ OK ] Initialized scheduler\n");
 
     kstd::printf("[ .. ] Fake hanging to test keyboard\n");
     asm("sti");
