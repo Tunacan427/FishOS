@@ -1,9 +1,9 @@
-#include <kstd/cstring.hpp>
+#include "cstring.hpp"
 
-namespace kstd {
-    int memcmp(const void *aptr, const void *bptr, usize size) {
-        const u8 *a = (const u8*)aptr;
-        const u8 *b = (const u8*)bptr;
+namespace klib {
+    int memcmp(const void *lhs, const void *rhs, usize size) {
+        const u8 *a = (const u8*)lhs;
+        const u8 *b = (const u8*)rhs;
         for (usize i = 0; i < size; i++) {
             if (a[i] < b[i])
                 return -1;
@@ -55,5 +55,22 @@ namespace kstd {
     char *strcat(char *dst, const char *src) {
         strcpy(dst + strlen(dst), src);
         return dst;
+    }
+
+    int strcmp(const char *lhs, const char *rhs) {
+        while (*lhs && (*lhs == *rhs)) {
+            lhs++;
+            rhs++;
+        }
+        return *(const unsigned char*)lhs - *(const unsigned char*)rhs;
+    }
+    
+    int strncmp(const char *lhs, const char *rhs, usize count) {
+        while (count && *lhs && (*lhs == *rhs)) {
+            lhs++;
+            rhs++;
+            count--;
+        }
+        return count ? (*(const unsigned char*)lhs - *(const unsigned char*)rhs) : 0;
     }
 }

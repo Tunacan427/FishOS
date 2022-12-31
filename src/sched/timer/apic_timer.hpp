@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 
 namespace sched::timer::apic_timer {
     void stop();

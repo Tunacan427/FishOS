@@ -1,7 +1,7 @@
 #pragma once
 
-#include <kstd/types.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/types.hpp>
+#include <klib/cstdio.hpp>
 
 namespace mem {
     // based on https://www.gingerbill.org/article/2021/12/02/memory-allocation-strategies-006/

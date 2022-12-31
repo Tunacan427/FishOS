@@ -1,10 +1,10 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <mem/allocator.hpp>
-#include <kstd/cstring.hpp>
+#include <klib/cstring.hpp>
 
-namespace kstd {
+namespace klib {
     void* malloc(usize size);
     void* calloc(usize size);
     void* realloc(void *ptr, usize size);

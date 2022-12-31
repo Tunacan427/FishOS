@@ -1,8 +1,8 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 
-namespace kstd {
+namespace klib {
     struct Spinlock {
         volatile bool locked = false;
 

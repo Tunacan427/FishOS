@@ -1,24 +1,26 @@
 #pragma once
 
-#include <kstd/types.hpp>
-#include <kstd/vector.hpp>
-#include <kstd/string.hpp>
-#include <kstd/functional.hpp>
+#include <klib/types.hpp>
+#include <klib/string.hpp>
+#include <klib/hashmap.hpp>
 
 namespace vfs {
-    struct INode {
-        u64 id;
+    struct FileSystem {
+
     };
 
-    struct FileOperations {
+    struct Node {
+        FileSystem *m_filesystem;
+        klib::String m_name;
+        Node *m_redirect;
+        Node *m_parent;
+        klib::HashMap<klib::String, Node*> *m_children;
+
+        Node(FileSystem *fs, Node *parent, klib::String name, bool dir);
+
+        void create_dotentries();
     };
 
-    struct File {
-        INode *inode;
-        kstd::U8String name;
-    };
-
-    struct Directory {
-        INode *inode;
-    };
+    void init();
+    void register_filesystem(klib::String &identifier, FileSystem *fs);
 }

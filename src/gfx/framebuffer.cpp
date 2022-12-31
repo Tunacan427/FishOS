@@ -9,18 +9,21 @@ namespace gfx {
     }
 
     void Framebuffer::put_pixel(u16 x, u16 y, u32 rgb) {
-        u64 where = x * this->pixel_width + y * this->pitch;
-        this->addr[where] = rgb & 255; // blue
-        this->addr[where + 1] = (rgb >> 8) & 255; // green
-        this->addr[where + 2] = (rgb >> 16) & 255; // red
+        if (x > width || y > height) return;
+        u64 where = x * pixel_width + y * pitch;
+        addr[where] = rgb & 255; // blue
+        addr[where + 1] = (rgb >> 8) & 255; // green
+        addr[where + 2] = (rgb >> 16) & 255; // red
     }
 
     void Framebuffer::fill_rect(u16 x, u16 y, u16 w, u16 h, u32 rgb) {
         u8 *where;
-        u32 pw = this->pixel_width;
+        u32 pw = pixel_width;
         for (u16 i = y; i < h + y; i++) {
-            where = (u8*)((u64)this->addr + this->pitch * i);
+            if (i >= height) continue;
+            where = (u8*)((u64)addr + pitch * i);
             for (u16 j = x; j < w + x; j++) {
+                if (j >= width) continue;
                 where[j * pw] = rgb & 255; // blue
                 where[j * pw + 1] = (rgb >> 8) & 255; // green
                 where[j * pw + 2] = (rgb >> 16) & 255; // red
@@ -33,7 +36,7 @@ namespace gfx {
         u32 version;         // zero
         u32 header_size;     // whereet of bitmaps in file, 32
         u32 flags;           // 0 if there's no unicode table
-        u32 num_glyph;       // number of glyphs
+        u32 nuglyph;       // number of glyphs
         u32 bytes_per_glyph; // size of each glyph 
         u32 height;          // height in pixels
         u32 width;           // width in pixels
@@ -43,7 +46,7 @@ namespace gfx {
     // these are linked using objcopy
     extern "C" char _binary_font_psfu_start;
     extern "C" char _binary_font_psfu_end;
-    */
+    
 
     char _binary_font_psfu_start = 0;
     char _binary_font_psfu_end = 0;
@@ -55,7 +58,7 @@ namespace gfx {
         int bytesperline = (font->width + 7) / 8;
         // get the glyph for the character. If there's no
         // glyph for a given character, we'll display the first glyph. 
-        u8 *glyph = (u8*)&_binary_font_psfu_start + font->header_size + (c > 0 && c < font->num_glyph ? c : 0) * font->bytes_per_glyph;
+        u8 *glyph = (u8*)&_binary_font_psfu_start + font->header_size + (c > 0 && c < font->nuglyph ? c : 0) * font->bytes_per_glyph;
         // calculate the upper left corner on screen where we want to display.
         // we only do this once, and adjust the whereet later. This is faster.
         u64 where = ((cy * font->height + offy) * this->pitch) + ((cx * font->width + offx) * 4);
@@ -77,4 +80,5 @@ namespace gfx {
             where += this->pitch;
         }
     }
+    */
 }

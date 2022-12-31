@@ -1,13 +1,13 @@
 #include <terminal.hpp>
 #include <cpu/cpu.hpp>
 #include <gfx/framebuffer.hpp>
-#include <kstd/lock.hpp>
+#include <klib/lock.hpp>
 #include <panic.hpp>
 
 namespace terminal {
     /*
     static char buffer_internal[8192];
-    static kstd::RingBuffer<char> term_buf;
+    static klib::RingBuffer<char> term_buf;
 
     static usize terminal_x = 0;
     static usize terminal_y = 0;
@@ -52,7 +52,7 @@ namespace terminal {
     }
     */
 
-    static kstd::Spinlock terminal_lock;
+    static klib::Spinlock terminal_lock;
     static limine_terminal_write terminal_write;
     static limine_terminal *main_terminal;
 

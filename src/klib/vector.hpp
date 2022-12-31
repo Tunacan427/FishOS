@@ -1,15 +1,15 @@
 #pragma once
 
-#include <kstd/types.hpp>
-#include <kstd/cstdlib.hpp>
-#include <kstd/cstring.hpp>
+#include "types.hpp"
+#include "cstdlib.hpp"
 
-namespace kstd {
+namespace klib {
     template<typename T>
-    class BasicString {
-        T *buffer;
-        usize len;
-        
+    class Vector {
+        T *m_buffer;
+        usize m_size;
+        usize m_capacity;
+
     public:
         struct iterator {
             using value_type = T;
@@ -34,32 +34,31 @@ namespace kstd {
             pointer ptr;
         };
 
-        BasicString() : buffer(nullptr), len(0) {}
-
-        BasicString(const T *cstr) {
-            len = kstd::strlen(cstr);
-            buffer = kstd::malloc(len + 1);
-            kstd::memcpy(buffer, cstr, len + 1);
+        Vector(usize reserve = 0) : m_size(0), m_capacity(reserve) {
+            m_buffer = (T*)(reserve ? klib::malloc(reserve * sizeof(T)) : nullptr);
         }
         
-        ~BasicString() {
-            kstd::free(buffer);
+        ~Vector() {
+            klib::free(m_buffer);
         }
 
-        constexpr usize size() const noexcept { return len; }
-        constexpr usize length() const noexcept { return len; }
-
-        T& operator[](usize index) const {
-            return index < len ? buffer[index] : nullptr;
+        T* operator [](usize index) const {
+            return index < m_size ? m_buffer[index] : nullptr;
         }
+
+        void push_back(T elem) {
+            if (m_size == m_capacity) {
+                m_capacity = m_capacity ? m_capacity * 2 : 1;
+                m_buffer = (T*)klib::realloc(m_buffer, m_capacity * sizeof(T));
+            }
+            m_buffer[m_size] = elem;
+            m_size++;
+        }
+
+        inline constexpr usize size() const noexcept { return m_size; }
+        inline constexpr usize capacity() const noexcept { return m_capacity; }
         
-        iterator begin() noexcept { return iterator(buffer); }
-        iterator end() noexcept { return iterator(buffer + len + 1); }
-
-        constexpr const T& front() const { return buffer[0]; }
-        constexpr const T& back() const { return buffer[len - 1]; }
+        iterator begin() noexcept { return iterator(m_buffer); }
+        iterator end() noexcept { return iterator(m_buffer + m_size); }
     };
-
-    using String = BasicString<char>;
-    using U8String = BasicString<char8_t>;
 }

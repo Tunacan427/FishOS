@@ -1,13 +1,13 @@
 #include "mem/vmm.hpp"
 #include <mem/pmm.hpp>
-#include <kstd/lock.hpp>
-#include <kstd/cstdio.hpp>
-#include <kstd/cstring.hpp>
+#include <klib/lock.hpp>
+#include <klib/cstdio.hpp>
+#include <klib/cstring.hpp>
 #include <panic.hpp>
 #include <limine.hpp>
 
 namespace mem::pmm {
-    static kstd::Spinlock pmm_lock;
+    static klib::Spinlock pmm_lock;
     static usize page_bitmap_index = 0;
 
     static usize total_mem_size = 0;
@@ -24,21 +24,20 @@ namespace mem::pmm {
             if (entry->type == LIMINE_MEMMAP_USABLE) 
                 total_usable_size += entry->length;
         }
-        kstd::printf("[INFO] Total usable memory size: %ld KiB\n", total_usable_size / 1024);
+        klib::printf("[INFO] Total usable memory size: %ld KiB\n", total_usable_size / 1024);
 
-        page_bitmap->size = total_mem_size / 0x1000;
+        page_bitmap->m_size = total_mem_size / 0x1000;
 
         for (usize i = 0; i < memmap_res->entry_count; i++) {
             auto entry = memmap_res->entries[i];
-            if (entry->type == LIMINE_MEMMAP_USABLE && entry->length >= (page_bitmap->size / 8)) {
-                page_bitmap->buffer = (u8*)(entry->base + hhdm);
-                kstd::printf("[INFO] Bitmap virt addr: %#lX, bits: %#lX\n", (uptr)page_bitmap->buffer, page_bitmap->size);
+            if (entry->type == LIMINE_MEMMAP_USABLE && entry->length >= (page_bitmap->m_size / 8)) {
+                page_bitmap->m_buffer = (u8*)(entry->base + hhdm);
+                klib::printf("[INFO] Bitmap virt addr: %#lX, bits: %#lX\n", (uptr)page_bitmap->m_buffer, page_bitmap->m_size);
                 break;
             }
         }
 
-        for (usize i = 0; i < page_bitmap->size; i++)
-            page_bitmap->set(i, true);
+        page_bitmap->fill(true);
         
         for (usize e = 0; e < memmap_res->entry_count; e++) {
             auto entry = memmap_res->entries[e];
@@ -54,17 +53,13 @@ namespace mem::pmm {
             }
         }
         
-        usize bitmap_self_index = ((uptr)page_bitmap->buffer - hhdm) / 0x1000;
-        for (usize i = bitmap_self_index; i < bitmap_self_index + page_bitmap->size / 0x8000; i++)
+        usize bitmap_self_index = ((uptr)page_bitmap->m_buffer - hhdm) / 0x1000;
+        for (usize i = bitmap_self_index; i < bitmap_self_index + page_bitmap->m_size / 0x8000; i++)
             page_bitmap->set(i, true);
-/*
-        for (usize i = 0; i < page_bitmap->size; i++)
-            kstd::putchar(page_bitmap->get(i) + '0');
-*/  
     }
 
-    kstd::Bitmap* get_bitmap() {
-        static kstd::Bitmap page_bitmap;
+    klib::Bitmap* get_bitmap() {
+        static klib::Bitmap page_bitmap;
         return &page_bitmap;
     }
 
@@ -97,10 +92,10 @@ namespace mem::pmm {
     }
 
     void* alloc_pages(usize num_pages) {
-        kstd::LockGuard<kstd::Spinlock> guard(pmm_lock);
+        klib::LockGuard<klib::Spinlock> guard(pmm_lock);
 
         usize last = page_bitmap_index;
-        void *result = inner_alloc(num_pages, get_bitmap()->size);
+        void *result = inner_alloc(num_pages, get_bitmap()->m_size);
 
         if (result == nullptr) {
             page_bitmap_index = 0;
@@ -115,12 +110,12 @@ namespace mem::pmm {
 
     void* calloc_pages(usize num_pages) {
         void *pages = alloc_pages(num_pages);
-        kstd::memset((void*)((uptr)pages + vmm::get_hhdm()), 0, num_pages * 0x1000);
+        klib::memset((void*)((uptr)pages + vmm::get_hhdm()), 0, num_pages * 0x1000);
         return pages;
     }
 
     void free_pages(void *phy, usize num_pages) {
-        kstd::LockGuard<kstd::Spinlock> guard(pmm_lock);
+        klib::LockGuard<klib::Spinlock> guard(pmm_lock);
         auto page_bitmap = get_bitmap();
 
         usize i = ((uptr)phy) / 0x1000;

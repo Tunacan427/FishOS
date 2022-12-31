@@ -1,115 +1,151 @@
-#include "cpu/interrupts/interrupts.hpp"
 #include <sched/sched.hpp>
 #include <sched/timer/apic_timer.hpp>
 #include <mem/pmm.hpp>
 #include <mem/vmm.hpp>
 #include <cpu/cpu.hpp>
-#include <kstd/cstring.hpp>
-#include <kstd/cstdio.hpp>
+#include <cpu/interrupts/interrupts.hpp>
+#include <klib/cstring.hpp>
+#include <klib/cstdio.hpp>
 
 namespace sched {
-    const usize stack_size = 0x200000; // 2 MiB
+    const usize stack_size = 0x10000; // 64 KiB
     static ScheduleQueue schedule_queue;
-    static ScheduleQueue::QueuedThread *current_thread;
+    static ScheduleQueue::QueuedTask *current_task;
 
-    void ScheduleQueue::insert(Thread *thread) {
+    void ScheduleQueue::insert(Task *task) {
         if (!head) {
-            head = new QueuedThread { thread, nullptr };
+            head = new QueuedTask { task, nullptr };
             return;
         }
 
-        for (QueuedThread **current = &head; *current; current = &(*current)->next) {
-            (*current) = new QueuedThread { thread, *current };
+        for (QueuedTask **current = &head; *current; current = &(*current)->next) {
+            (*current) = new QueuedTask { task, *current };
             break;
         }
     }
 
-    void SleepQueue::insert(Thread *thread, usize time_ns) {
+    void SleepQueue::insert(Task *task, usize time_ns) {
         if (!head) {
-            head = new QueuedThread { thread, nullptr, time_ns };
+            head = new QueuedTask { task, nullptr, time_ns };
             return;
         }
 
-        for (QueuedThread **current = &head; ; current = &(*current)->next) {
+        for (QueuedTask **current = &head; ; current = &(*current)->next) {
             if (*current == nullptr) goto add;
             if (time_ns >= (*current)->delta_time_ns) {
                 time_ns -= (*current)->delta_time_ns;
                 continue;
             }
         add:
-            (*current) = new QueuedThread { thread, *current, time_ns };
+            (*current) = new QueuedTask { task, *current, time_ns };
             if (auto next = (*current)->next) next->delta_time_ns -= time_ns;
             break;
         }
     }
 
-    Thread* new_kernel_thread(void *pc, bool enqueue) {
+    Task* new_kernel_task(void *pc, bool enqueue) {
         static u16 tid = 0;
-        Thread *thread = new Thread(tid++);
+        Task *task = new Task(tid++);
 
-        uptr user_stack_phy = (uptr)mem::pmm::alloc_pages(stack_size / 0x1000);
-        thread->user_stack = user_stack_phy + mem::vmm::get_hhdm();
-        // uptr kernel_stack_phy = (uptr)mem::pmm::alloc_pages(stack_size / 0x1000);
-        // thread->kernel_stack = kernel_stack_phy + mem::vmm::get_hhdm();
+        uptr stack_phy = (uptr)mem::pmm::calloc_pages(stack_size / 0x1000);
+        task->stack = stack_phy + stack_size + mem::vmm::get_hhdm();
 
-        thread->running_on = 0;
-        thread->pagemap->pml4 = mem::vmm::get_kernel_pagemap()->pml4;
-        thread->gpr_state->cs = 40; // 64-bit kernel code 
-        thread->gpr_state->ds = 48; // 64-bit kernel data
-        thread->gpr_state->es = 48; // 64-bit kernel data
-        thread->gpr_state->ss = 48; // 64-bit kernel data
-        thread->gpr_state->rflags = 0x202; // only set the interrupt flag 
-        thread->gpr_state->rip = (u64)pc;
-        thread->gpr_state->rsp = thread->user_stack;
+        task->running_on = 0;
+        task->pagemap->pml4 = mem::vmm::get_kernel_pagemap()->pml4;
+        task->gpr_state->cs = 40; // 64-bit kernel code 
+        task->gpr_state->ds = 48; // 64-bit kernel data
+        task->gpr_state->es = 48; // 64-bit kernel data
+        task->gpr_state->ss = 48; // 64-bit kernel data
+        task->gpr_state->rflags = 0x202; // only set the interrupt flag 
+        task->gpr_state->rip = (u64)pc;
+        task->gpr_state->rsp = task->stack;
 
         if (enqueue)
-            schedule_queue.insert(thread);
+            schedule_queue.insert(task);
 
-        return thread;
+        return task;
     }
 
-    [[noreturn]] void test_thread_1() {
-        while (true)
-            kstd::printf("hello from thread 1\n");
+    const i64 test_speed = 4;
+
+    [[noreturn]] void test_task_1() {
+        klib::printf("hello from task 1\n");
+        auto fb = gfx::main_fb();
+        i64 x = 0, y = 0, old_x = 0, old_y = 0, frames = 0, x_inc = true, y_inc = true;
+        while (true) {
+            fb.fill_rect(x, y, 16, 16, 0x0000FF);
+            x = x_inc ? x + 1 : x - 1;
+            y = y_inc ? y + 1 : y - 1;
+            frames++;
+            if (x + 16 >= fb.width) x_inc = false;
+            if (x <= 0) x_inc = true;
+            if (y + 16 >= fb.height) y_inc = false;
+            if (y <= 0) y_inc = true;
+            if (frames == test_speed) {
+                frames = 0;
+                asm volatile("hlt");
+            }
+            fb.fill_rect(old_x, old_y, 16, 16, 0x6565CE);
+            old_x = x;
+            old_y = y;
+        }
     }
 
-    [[noreturn]] void test_thread_2() {
-        while (true)
-            kstd::printf("hello from thread 2\n");
+    [[noreturn]] void test_task_2() {
+        klib::printf("hello from task 2\n");
+        auto fb = gfx::main_fb();
+        i64 x = fb.width, y = fb.height, old_x = x, old_y = y, frames = 0, x_inc = false, y_inc = false;
+        while (true) {
+            fb.fill_rect(x, y, 16, 16, 0xFF0000);
+            x = x_inc ? x + 1 : x - 1;
+            y = y_inc ? y + 1 : y - 1;
+            frames++;
+            if (x + 16 >= fb.width) x_inc = false;
+            if (x <= 0) x_inc = true;
+            if (y + 16 >= fb.height) y_inc = false;
+            if (y <= 0) y_inc = true;
+            if (frames == test_speed) {
+                frames = 0;
+                asm volatile("hlt");
+            }
+            fb.fill_rect(old_x, old_y, 16, 16, 0xBC5151);
+            old_x = x;
+            old_y = y;
+        }
     }
 
     void init() {
-        new_kernel_thread((void*)test_thread_1, true);
-        new_kernel_thread((void*)test_thread_2, true);
+        new_kernel_task((void*)test_task_1, true);
+        new_kernel_task((void*)test_task_2, true);
         timer::apic_timer::oneshot(10000);
     }
 
     void scheduler_isr(u64 vec, cpu::GPRState *gpr_state) {
         timer::apic_timer::stop();
 
-        if (current_thread) {
-            auto t = current_thread->thread;
+        if (current_task) {
+            auto t = current_task->task;
 
-            // copy the saved registers into the current thread
-            kstd::memcpy(t->gpr_state, gpr_state, sizeof(cpu::GPRState));
+            // copy the saved registers into the current task
+            klib::memcpy(t->gpr_state, gpr_state, sizeof(cpu::GPRState));
             t->gs_base = cpu::read_kernel_gs_base();
             t->fs_base = cpu::read_fs_base();
         }
         
-        // switch to the next thread
-        if (current_thread && current_thread->next) 
-            current_thread = current_thread->next;
+        // switch to the next task
+        if (current_task && current_task->next) 
+            current_task = current_task->next;
         else 
-            current_thread = schedule_queue.head;
+            current_task = schedule_queue.head;
 
-        cpu::write_gs_base((u64)current_thread->thread);
-        cpu::write_fs_base(current_thread->thread->fs_base);
+        cpu::write_gs_base((u64)current_task->task);
+        cpu::write_fs_base(current_task->task->fs_base);
         
-        if (!current_thread->thread->pagemap->active)
-            mem::vmm::activate_pagemap(current_thread->thread->pagemap);
+        if (!current_task->task->pagemap->active)
+            mem::vmm::activate_pagemap(current_task->task->pagemap);
         
-        // load the thread's registers  
-        kstd::memcpy(gpr_state, current_thread->thread->gpr_state, sizeof(cpu::GPRState));
+        // load the task's registers  
+        klib::memcpy(gpr_state, current_task->task->gpr_state, sizeof(cpu::GPRState));
 
         cpu::interrupts::eoi();
         timer::apic_timer::oneshot(10000);

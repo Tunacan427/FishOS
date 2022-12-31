@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <mem/vmm.hpp>
 #include <cpu/cpu.hpp>
 #include <panic.hpp>

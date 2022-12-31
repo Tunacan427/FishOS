@@ -1,5 +1,5 @@
 #include <sched/timer/hpet.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/cstdio.hpp>
 #include <acpi/tables.hpp>
 #include <panic.hpp>
 
@@ -34,13 +34,13 @@ namespace sched::timer::hpet {
         auto info = regs.read<u64>(GENERAL_INFO);
         period = info >> 32;
         freq = 1'000'000'000'000'000 / period;
-        kstd::printf("[INFO] Vendor: %04lX, Period: %ld fs, Freq: %ld Hz\n", (info >> 16) & 0xFFFF, period, freq);
+        klib::printf("[INFO] Vendor: %04lX, Period: %ld fs, Freq: %ld Hz\n", (info >> 16) & 0xFFFF, period, freq);
 
         regs.write<u64>(GENERAL_CONFIG, 0); // disable hpet
         regs.write<u64>(MAIN_COUNTER, 0); // set counter to 0
         regs.write<u64>(GENERAL_CONFIG, 1); // enable hpet
 
         initialized = true;
-        kstd::printf("[ OK ] Initialized HPET\n");
+        klib::printf("[ OK ] Initialized HPET\n");
     }
 }

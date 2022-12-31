@@ -1,10 +1,10 @@
-#include <kstd/cstdlib.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/cstdlib.hpp>
+#include <klib/cstdio.hpp>
 
-namespace kstd {
+namespace klib {
     void* malloc(usize size) {
         auto ptr = mem::BuddyAlloc::get()->malloc(size);
-        printf("malloc(%ld): %#lX\n", size, (uptr)ptr);
+        // printf("malloc(%ld): %#lX\n", size, (uptr)ptr);
         return ptr;
     }
 
@@ -19,7 +19,7 @@ namespace kstd {
     }
 
     void free(void *ptr) {
-        printf("free(): %#lX\n", (uptr)ptr);
+        // printf("free(): %#lX\n", (uptr)ptr);
         mem::BuddyAlloc::get()->free(ptr);
     }
     

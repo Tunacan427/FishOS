@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 
 namespace sched::timer::pit {
     const usize freq = 1193182;

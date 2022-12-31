@@ -1,19 +1,19 @@
 #include <cpu/interrupts/interrupts.hpp>
 #include <cpu/interrupts/apic.hpp>
 #include <cpu/interrupts/idt.hpp>
-#include <kstd/vector.hpp>
+#include <klib/vector.hpp>
 
 namespace cpu::interrupts {
     static u32 irq_to_gsi[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     static u16 irq_flags[16];
 
-    kstd::Vector<IOAPIC>& ioapics() {
-        static kstd::Vector<IOAPIC> ioapics;
+    klib::Vector<IOAPIC>& ioapics() {
+        static klib::Vector<IOAPIC> ioapics;
         return ioapics;
     }
 
-    kstd::Vector<LAPIC>& lapics() {
-        static kstd::Vector<LAPIC> lapics;
+    klib::Vector<LAPIC>& lapics() {
+        static klib::Vector<LAPIC> lapics;
         return lapics;
     }
 

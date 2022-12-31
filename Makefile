@@ -1,13 +1,16 @@
 KERNEL := fishos.elf
 ISO := fishos.iso
 
+CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CPPFLAGS = -O0 -g -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
+CFLAGS = -O3 -g -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined 
+CPPFLAGS = $(CFLAGS)
 NASMFLAGS = -felf64 -g
+LDFLAGS =
 
-INTERNALLDFLAGS :=             \
+INTERNALLDFLAGS :=         \
 	-nostartfiles          \
 	-nodefaultlibs         \
 	-nostdlib              \
@@ -15,15 +18,11 @@ INTERNALLDFLAGS :=             \
 	-zmax-page-size=0x1000 \
 	-static
 
-INTERNALCPPFLAGS :=             \
+INTERNALCFLAGS :=           \
 	-Isrc                   \
-	-std=gnu++20            \
 	-ffreestanding          \
-	-fno-exceptions         \
-	-fno-rtti               \
-	-fno-stack-protector    \
+	-fstack-protector       \
 	-fno-pic                \
-	-fno-use-cxa-atexit     \
 	-fno-strict-aliasing    \
 	-fno-omit-frame-pointer \
 	-mno-80387              \
@@ -35,18 +34,20 @@ INTERNALCPPFLAGS :=             \
 	-mcmodel=kernel         \
 	-MMD
 
+INTERNALCPPFLAGS :=     \
+	$(INTERNALCFLAGS)   \
+	-std=gnu++20        \
+	-fno-exceptions     \
+	-fno-rtti           \
+	-fno-use-cxa-atexit \
+
+CFILES := $(shell find ./src -type f -name '*.c')
+OBJ := $(CFILES:./src/%.c=obj/%.o)
 CPPFILES := $(shell find ./src -type f -name '*.cpp')
-OBJ := $(CPPFILES:./src/%.cpp=obj/%.o)
+OBJ += $(CPPFILES:./src/%.cpp=obj/%.o)
 ASMFILES := $(shell find ./src -type f -name '*.asm')
 OBJ += $(ASMFILES:./src/%.asm=obj/%.o)
 # OBJ += obj/font.o
-
-CRTI_OBJ := obj/kstd/crti.o
-CRTN_OBJ := obj/kstd/crtn.o
-INTERNAL_CRT := $(CRTI_OBJ) $(CRTN_OBJ)
-
-# ALL_OBJ := $(CRTI_OBJ) $(CRTBEGIN_OBJ) $(filter-out $(INTERNAL_CRT),$(OBJ)) $(CRTEND_OBJ) $(CRTN_OBJ)
-ALL_OBJ := $(CRTI_OBJ) $(filter-out $(INTERNAL_CRT),$(OBJ)) $(CRTN_OBJ)
 
 .PHONY: all clean runbios runuefi installuefi
 
@@ -56,8 +57,7 @@ runbios: $(ISO)
 	@echo "[QEMU]"
 	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
 		-drive id=disk,file=disk.img,if=virtio,format=raw \
-		-no-reboot -no-shutdown -M smm=off -s 
-#		-d int
+		-no-reboot -no-shutdown -M smm=off -s
 
 runuefi: installuefi
 	@echo "[QEMU]"
@@ -88,7 +88,13 @@ $(ISO): $(KERNEL)
 # Link rules for the final kernel executable.
 $(KERNEL): $(OBJ)
 	@echo "[LD] $@"
-	@$(CPP) $(INTERNALLDFLAGS) $(ALL_OBJ) -n -T linker.ld -o $@
+	@$(CPP) $(LDFLAGS) $(INTERNALLDFLAGS) $(OBJ) -n -T linker.ld -o $@
+
+# Compilation rules for *.c files.
+obj/%.o: src/%.c
+	@echo "[CC] $< | $@"
+	@mkdir -p $(shell dirname $@)
+	@$(CC) $(CFLAGS) $(INTERNALCFLAGS) -c $< -o $@
 
 # Compilation rules for *.cpp files.
 obj/%.o: src/%.cpp

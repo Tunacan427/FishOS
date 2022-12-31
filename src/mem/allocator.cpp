@@ -1,9 +1,9 @@
 #include <mem/allocator.hpp>
-#include <kstd/cstring.hpp>
-#include <kstd/lock.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/cstring.hpp>
+#include <klib/lock.hpp>
+#include <klib/cstdio.hpp>
 
-static kstd::Spinlock alloc_lock;
+static klib::Spinlock alloc_lock;
 
 namespace mem {
     BuddyAlloc::Block* BuddyAlloc::Block::split_until(usize size) {
@@ -13,7 +13,7 @@ namespace mem {
         while (size < current_actual_size) {
             current_actual_size /= 2;
             block->size = current_actual_size;
-            // kstd::printf("%#lX size %#lX split -> %#lX & %#lX size %#lX, req %#lX\n", (uptr)block, current_actual_size * 2, (uptr)block, (uptr)block->next(), current_actual_size, size);
+            // klib::printf("%#lX size %#lX split -> %#lX & %#lX size %#lX, req %#lX\n", (uptr)block, current_actual_size * 2, (uptr)block, (uptr)block->next(), current_actual_size, size);
             block = block->next();
             block->size = current_actual_size;
             block->is_free = true;
@@ -36,11 +36,11 @@ namespace mem {
     }
 
     BuddyAlloc::Block* BuddyAlloc::find_best(usize size) {
-        // kstd::printf("Trying to find best block with size %#lX\n", size);
+        // klib::printf("Trying to find best block with size %#lX\n", size);
         Block *best = nullptr;
         Block *block = this->head;
         Block *buddy = block->next();
-        // kstd::printf("1 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
+        // klib::printf("1 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
         
         if (buddy == this->tail && block->is_free) {
             return block->split_until(size);
@@ -49,7 +49,7 @@ namespace mem {
         while (block < this->tail && buddy < this->tail) { // make sure the buddies are within the range
             // if both buddies are free, coobjalesce them together
             if (block->is_free && buddy->is_free && block->size == buddy->size) {
-                // kstd::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
+                // klib::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
                 block->size *= 2;
                 if (size <= block->size && (best == nullptr || block->size <= best->size))
                     best = block;
@@ -57,7 +57,7 @@ namespace mem {
                 block = buddy->next();
                 if (block < this->tail)
                     buddy = block->next(); // delay the buddy block for the next iteration
-                // kstd::printf("2 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
+                // klib::printf("2 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
                 continue;
             }
             
@@ -72,17 +72,17 @@ namespace mem {
                 block = buddy->next();
                 if (block < this->tail)
                     buddy = block->next(); // delay the buddy block for the next iteration
-                // kstd::printf("3 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
+                // klib::printf("3 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
             } else {
                 // buddy was split into smaller blocks
                 block = buddy;
                 buddy = buddy->next();
-                // kstd::printf("4 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
+                // klib::printf("4 block: %#lX, buddy: %#lX\n", (uptr)block, (uptr)buddy);
             }
         }
         
         if (best) {
-            // kstd::printf("Found best block with size %#lX\n", best->size);
+            // klib::printf("Found best block with size %#lX\n", best->size);
             return best->split_until(size);
         }
         return nullptr;
@@ -97,7 +97,7 @@ namespace mem {
             while (block < this->tail && buddy < this->tail) { // make sure the buddies are within the range
                 if (block->is_free && buddy->is_free && block->size == buddy->size) {
                     // coalesce buddies into one
-                    // kstd::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
+                    // klib::printf("Coalescing %#lX & %#lX at size %#lX into block %#lX size %#lX\n", (uptr)block, (uptr)buddy, block->size, (uptr)block, block->size * 2);
                     block->size *= 2;
                     block = block->next();
                     if (block < this->tail) {
@@ -121,7 +121,7 @@ namespace mem {
     }
 
     void* BuddyAlloc::malloc(usize size) {
-        kstd::LockGuard<kstd::Spinlock> guard(alloc_lock);
+        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
 
         if (size != 0) {
             usize actual_size = size_required(size + sizeof(Block));
@@ -143,11 +143,15 @@ namespace mem {
     }
 
     void* BuddyAlloc::realloc(void *ptr, usize size) {
-        if (ptr == nullptr) {
+        if (ptr == nullptr)
             return malloc(size);
+
+        if (size == 0) {
+            free(ptr);
+            return nullptr;
         }
 
-        kstd::LockGuard<kstd::Spinlock> guard(alloc_lock);
+        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
 
         if (uptr old_data = (uptr)ptr) {
             if ((uptr)this->head > old_data) return nullptr;
@@ -171,7 +175,7 @@ namespace mem {
             if (found) {
                 found->size = size + sizeof(Block);
                 found->is_free = false;
-                kstd::memcpy(found->data(), ptr, old_size - sizeof(Block));
+                klib::memcpy(found->data(), ptr, old_size - sizeof(Block));
                 old_block->is_free = true;
                 return found->data();
             }
@@ -181,7 +185,7 @@ namespace mem {
     }
 
     void BuddyAlloc::free(void *ptr) {
-        kstd::LockGuard<kstd::Spinlock> guard(alloc_lock);
+        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
 
         if (uptr data = (uptr)ptr) {
             if ((uptr)this->head > data) return;

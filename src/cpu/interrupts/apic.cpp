@@ -1,14 +1,14 @@
 #include <cpu/interrupts/apic.hpp>
 #include <cpu/interrupts/idt.hpp>
 #include <cpu/cpu.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/cstdio.hpp>
 #include <mem/vmm.hpp>
 
 namespace cpu::interrupts {
     static uptr reg_base;
 
     static void spurious(u64 vec, GPRState *frame) {
-        kstd::printf("\n[WARN] APIC spurious interrupt fired\n");
+        klib::printf("\n[WARN] APIC spurious interrupt fired\n");
         LAPIC::eoi();
     }
 

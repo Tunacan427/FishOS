@@ -1,9 +1,9 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <panic.hpp>
 
-namespace kstd {
+namespace klib {
     template<class>
     class Function;
 
@@ -19,7 +19,7 @@ namespace kstd {
             F f;
 
         public:
-            CallableWrapper(const F &f) : f(kstd::move(f)) {}
+            CallableWrapper(const F &f) : f(klib::move(f)) {}
 
             R invoke(Args ...args) override {
                 return f(args...);
@@ -41,12 +41,12 @@ namespace kstd {
         template<class F>
         Function& operator =(F f) {
             if (this->callable) delete this->callable;
-            this->callable = new CallableWrapper<F>(kstd::move(f));
+            this->callable = new CallableWrapper<F>(klib::move(f));
             return *this;
         }
 
         Function& operator =(Function &f) {
-            kstd::swap(this->callable, f.callable);
+            klib::swap(this->callable, f.callable);
             return *this;
         }
 

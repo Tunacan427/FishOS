@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 
 namespace cpu {
     struct [[gnu::packed]] GDTR {

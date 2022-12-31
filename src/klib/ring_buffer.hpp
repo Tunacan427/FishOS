@@ -1,8 +1,8 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include "types.hpp"
 
-namespace kstd {
+namespace klib {
     template<typename T>
     struct RingBuffer {
         T *buffer;

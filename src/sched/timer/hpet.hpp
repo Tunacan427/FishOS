@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <acpi/tables.hpp>
 
 namespace sched::timer::hpet {

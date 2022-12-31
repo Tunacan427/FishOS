@@ -1,6 +1,9 @@
-#pragma once
+#ifndef _LIMINE_H
+#define _LIMINE_H 1
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -90,15 +93,15 @@ struct limine_hhdm_request {
 
 /* Framebuffer */
 
-#define LIMINE_FRAMEBUFFER_REQUEST { LIMINE_COMMON_MAGIC, 0xcbfe81d7dd2d1977, 0x063150319ebc9b71 }
+#define LIMINE_FRAMEBUFFER_REQUEST { LIMINE_COMMON_MAGIC, 0x9d5827dcd881dd75, 0xa3148604f6fab11b }
 
 #define LIMINE_FRAMEBUFFER_RGB 1
 
 struct limine_framebuffer {
     LIMINE_PTR(void *) address;
-    uint16_t width;
-    uint16_t height;
-    uint16_t pitch;
+    uint64_t width;
+    uint64_t height;
+    uint64_t pitch;
     uint16_t bpp;
     uint8_t memory_model;
     uint8_t red_mask_size;
@@ -107,7 +110,7 @@ struct limine_framebuffer {
     uint8_t green_mask_shift;
     uint8_t blue_mask_size;
     uint8_t blue_mask_shift;
-    uint8_t unused;
+    uint8_t unused[7];
     uint64_t edid_size;
     LIMINE_PTR(void *) edid;
 };
@@ -126,7 +129,7 @@ struct limine_framebuffer_request {
 
 /* Terminal */
 
-#define LIMINE_TERMINAL_REQUEST { LIMINE_COMMON_MAGIC, 0x0785a0aea5d0750f, 0x1c1936fee0d6cf6e }
+#define LIMINE_TERMINAL_REQUEST { LIMINE_COMMON_MAGIC, 0xc8ac59310c2b0844, 0xa68d0c7265d38878 }
 
 #define LIMINE_TERMINAL_CB_DEC 10
 #define LIMINE_TERMINAL_CB_BELL 20
@@ -148,8 +151,8 @@ typedef void (*limine_terminal_write)(struct limine_terminal *, const char *, ui
 typedef void (*limine_terminal_callback)(struct limine_terminal *, uint64_t, uint64_t, uint64_t, uint64_t);
 
 struct limine_terminal {
-    uint32_t columns;
-    uint32_t rows;
+    uint64_t columns;
+    uint64_t rows;
     LIMINE_PTR(struct limine_framebuffer *) framebuffer;
 };
 
@@ -185,11 +188,13 @@ struct limine_5_level_paging_request {
 
 #define LIMINE_SMP_REQUEST { LIMINE_COMMON_MAGIC, 0x95a67b819a1b857e, 0xa0b61b723b6a73e0 }
 
-#define LIMINE_SMP_X2APIC (1 << 0)
-
 struct limine_smp_info;
 
 typedef void (*limine_goto_address)(struct limine_smp_info *);
+
+#if defined (__x86_64__) || defined (__i386__)
+
+#define LIMINE_SMP_X2APIC (1 << 0)
 
 struct limine_smp_info {
     uint32_t processor_id;
@@ -206,6 +211,29 @@ struct limine_smp_response {
     uint64_t cpu_count;
     LIMINE_PTR(struct limine_smp_info **) cpus;
 };
+
+#elif defined (__aarch64__)
+
+struct limine_smp_info {
+    uint32_t processor_id;
+    uint32_t gic_iface_no;
+    uint64_t mpidr;
+    uint64_t reserved;
+    LIMINE_PTR(limine_goto_address) goto_address;
+    uint64_t extra_argument;
+};
+
+struct limine_smp_response {
+    uint64_t revision;
+    uint32_t flags;
+    uint64_t bsp_mpidr;
+    uint64_t cpu_count;
+    LIMINE_PTR(struct limine_smp_info **) cpus;
+};
+
+#else
+#error Unknown architecture
+#endif
 
 struct limine_smp_request {
     uint64_t id[4];
@@ -370,4 +398,23 @@ struct limine_kernel_address_request {
     LIMINE_PTR(struct limine_kernel_address_response *) response;
 };
 
+/* Device Tree Blob */
+
+#define LIMINE_DTB_REQUEST { LIMINE_COMMON_MAGIC, 0xb40ddb48fb54bac7, 0x545081493f81ffb7 }
+
+struct limine_dtb_response {
+    uint64_t revision;
+    LIMINE_PTR(void *) dtb_ptr;
+};
+
+struct limine_dtb_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_dtb_response *) response;
+};
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif

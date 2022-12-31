@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <panic.hpp>
 
 namespace cpu {
@@ -110,14 +110,14 @@ namespace cpu {
         asm volatile("invlpg (%0)" : : "r" (m) : "memory");
     }
     
-    template<kstd::Integral T> 
+    template<klib::Integral T> 
     static inline T bswap(T val) {
         volatile T result;
         asm volatile("bswap %0" : "=r" (result) : "r" (val));
         return result;
     }
     
-    template<kstd::Integral T> static inline void out(const u16 port, const T val) {
+    template<klib::Integral T> static inline void out(const u16 port, const T val) {
         panic("cpu::out must be used with u8, u16, or u32");
     }
 
@@ -136,7 +136,7 @@ namespace cpu {
         asm volatile("outl %0, %1" : : "a" (val), "Nd" (port));
     }
     
-    template<kstd::Integral T> static inline T in(const u16 port) {
+    template<klib::Integral T> static inline T in(const u16 port) {
         panic("cpu::in must be used with u8, u16, or u32");
     }
 

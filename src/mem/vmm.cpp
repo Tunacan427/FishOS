@@ -1,9 +1,9 @@
 #include <mem/vmm.hpp>
 #include <mem/pmm.hpp>
 #include <panic.hpp>
-#include <kstd/lock.hpp>
-#include <kstd/cstdio.hpp>
-#include <kstd/cstring.hpp>
+#include <klib/lock.hpp>
+#include <klib/cstdio.hpp>
+#include <klib/cstring.hpp>
 #include <cpu/cpu.hpp>
 #include <limine.hpp>
 
@@ -16,7 +16,7 @@ namespace mem::vmm {
     const uptr heap_begin = ~(uptr)0 - heap_size - 0x1000;
     const uptr heap_end = heap_begin + heap_size;
     
-    static kstd::Spinlock vmm_lock;
+    static klib::Spinlock vmm_lock;
     static Pagemap *active_pagemap;
     static uptr hhdm;
     static uptr kernel_phy_base;
@@ -31,33 +31,12 @@ namespace mem::vmm {
         kernel_virt_base = kernel_addr_res->virtual_base;
 
         u32 eax, ebx, ecx, edx;
-        cpu::cpuid(7, 0, &eax, &ebx, &ecx, &edx);
-        kstd::printf("[INFO] CPUID Leaf 7: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
-/*
-        u64 cr4 = cpu::read_cr4();
-        kstd::printf("[INFO] Original CR4: %#lX\n", cr4);
-
-        // enable SMAP if available
-        if (ebx & (1 << 20))
-            cr4 |= 1 << 21;
-        
-        // enable SMEP if available
-        if (ebx & (1 << 7))
-            cr4 |= 1 << 20;
-        
-        // enable UMIP if available
-        if (ecx & (1 << 2))
-            cr4 |= 1 << 11;
-
-        kstd::printf("[INFO] New CR4: %#lX\n", cr4);
-        cpu::write_cr4(cr4);
-*/
         cpu::cpuid(1, 0, &eax, &ebx, &ecx, &edx);
-        kstd::printf("[INFO] CPUID Leaf 1: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
+        klib::printf("[INFO] CPUID Leaf 1: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
 
         // panic if PAT is not available
         if (!(edx & (1 << 16)))
-            panic("CPU does not have PAT");
+            panic("CPU does not support PAT");
 
         // hardcode PAT
         // 0: WB  1: WT  2: UC-  3: UC  4: WB  5: WT  6: WC  7: WP
@@ -65,7 +44,7 @@ namespace mem::vmm {
         
         usize kernel_size = 0;
 
-        kstd::printf("[INFO] Physical memory map:\n");
+        klib::printf("[INFO] Physical memory map:\n");
         for (u64 i = 0; i < memmap_res->entry_count; i++) {
             auto entry = memmap_res->entries[i];
             const char *entry_name;
@@ -83,7 +62,7 @@ namespace mem::vmm {
             default: entry_name = "Unknown";
             }
 
-            kstd::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
+            klib::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
 
             if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE) {
                 kernel_pagemap.map_pages(entry->base, entry->base + hhdm, entry->length, flags);
@@ -92,10 +71,10 @@ namespace mem::vmm {
             }
         }
 
-        kstd::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
+        klib::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
         
 /*
-        kstd::printf("[INFO] Kernel PMRs:\n");
+        klib::printf("[INFO] Kernel PMRs:\n");
         for (usize i = 0; i < tag_pmrs->entries; i++) {
             auto pmr = tag_pmrs->pmrs[i];
             u64 flags = PAGE_PRESENT;
@@ -104,7 +83,7 @@ namespace mem::vmm {
 
             map_pages((pmr.base - kernel_virt_base) + kernel_phy_base, pmr.base, pmr.length, flags);
             
-            kstd::printf("       base %#lX, size: %ld KiB, permissions: %ld\n", pmr.base, pmr.length / 1024, pmr.permissions);
+            klib::printf("       base %#lX, size: %ld KiB, permissions: %ld\n", pmr.base, pmr.length / 1024, pmr.permissions);
         }
 */
 
@@ -125,20 +104,20 @@ namespace mem::vmm {
         u64 current_entry = current_table[index];
         if (current_entry & PAGE_PRESENT) {
             next_table = (u64*)((current_entry & 0x000FFFFFFFFFF000) + hhdm);
-            // kstd::printf("Page table exists, next table at %#lX\n", (u64)current_table);
+            // klib::printf("Page table exists, next table at %#lX\n", (u64)current_table);
         } else {
             next_table = (u64*)pmm::calloc_pages(1);
             current_table[index] = (u64)next_table | PAGE_PRESENT | PAGE_WRITABLE;
             next_table = (u64*)((uptr)next_table + hhdm);
-            // kstd::printf("Page table created at %#lX, current entry %#lX\n", (u64)next_table, current_entry);
+            // klib::printf("Page table created at %#lX, current entry %#lX\n", (u64)next_table, current_entry);
         }
         return next_table;
     }
 
     void Pagemap::map_page(uptr phy, uptr virt, u64 flags) {
-        kstd::LockGuard<kstd::Spinlock> guard(vmm_lock);
+        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
         u64 *current_table = this->pml4;
-        // kstd::printf("Map page phy %#lX virt %#lX\n", phy, virt);
+        // klib::printf("Map page phy %#lX virt %#lX\n", phy, virt);
 
         current_table = page_table_next_level(current_table, (virt >> 39) & 0x1FF);
         current_table = page_table_next_level(current_table, (virt >> 30) & 0x1FF);
@@ -152,13 +131,13 @@ namespace mem::vmm {
 
     void Pagemap::map_pages(uptr phy, uptr virt, usize size, u64 flags) {
         usize num_pages = align_page(size) / 0x1000;
-        // kstd::printf("Mapping %ld pages phy %#lX virt %#lX\n", num_pages, phy, virt);
+        // klib::printf("Mapping %ld pages phy %#lX virt %#lX\n", num_pages, phy, virt);
         for (usize i = 0; i < num_pages; i++)
             this->map_page(phy + (i * 0x1000), virt + (i * 0x1000), flags);
     }
 
     void activate_pagemap(Pagemap *pagemap) {
-        kstd::LockGuard<kstd::Spinlock> guard(vmm_lock);
+        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
         if (active_pagemap) active_pagemap->active = false;
         active_pagemap = pagemap;
         active_pagemap->active = true;
@@ -166,7 +145,7 @@ namespace mem::vmm {
     }
 
     bool try_demand_page(uptr virt) {
-        kstd::LockGuard<kstd::Spinlock> guard(vmm_lock);
+        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
         u64 *current_table = (u64*)PML4;
 
         current_table = page_table_next_level(current_table, (virt >> 39) & 0x1FF);

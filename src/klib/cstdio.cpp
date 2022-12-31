@@ -1,15 +1,15 @@
-#include <kstd/cstdio.hpp>
-#include <kstd/lock.hpp>
+#include <klib/cstdio.hpp>
+#include <klib/lock.hpp>
 #include <terminal.hpp>
 
-static inline usize num_digits(u64 x, u64 b = 10) {
+static inline usize num_digits(u64 x, u64 base = 10) {
     usize i = 0;
-    while (x /= b) i++;
+    while (x /= base) i++;
     return i;
 }
 
-namespace kstd {
-    static kstd::Spinlock print_lock;
+namespace klib {
+    static klib::Spinlock print_lock;
 
     int putchar(char c) {
         terminal::write_char(c);
@@ -135,5 +135,17 @@ namespace kstd {
         int i = vprintf(format, list);
         va_end(list);
         return i;
+    }
+
+    void panic_vprintf(const char *format, va_list list) {
+        print_lock.unlock();
+        vprintf(format, list);
+    }
+
+    [[gnu::format(printf, 1, 2)]] void panic_printf(const char *format, ...) {
+        va_list list;
+        va_start(list, format);
+        panic_vprintf(format, list);
+        va_end(list);
     }
 }

@@ -1,7 +1,7 @@
 #include <ps2/kbd/keyboard.hpp>
 #include <cpu/cpu.hpp>
 #include <cpu/interrupts/interrupts.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/cstdio.hpp>
 
 namespace ps2::kbd {
     const char map[128] = {
@@ -49,7 +49,7 @@ namespace ps2::kbd {
         if (scancode & 128) // release scancode, ignored
             goto end;
         
-        kstd::putchar(map[scancode]);
+        klib::putchar(map[scancode]);
     end:
         cpu::interrupts::eoi();
     }

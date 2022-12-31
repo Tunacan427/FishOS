@@ -1,15 +1,14 @@
 #pragma once
 
 #include <cpu/cpu.hpp>
-#include <kstd/types.hpp>
+#include <klib/types.hpp>
 #include <mem/vmm.hpp>
 
 namespace sched {
-    struct Thread {
+    struct Task {
         // fixed members, do not move !!!!!
         usize running_on;
-        uptr user_stack;
-        uptr kernel_stack;
+        uptr stack;
 
         // movable members
         u16 tid;
@@ -18,34 +17,34 @@ namespace sched {
         u64 gs_base, fs_base;
         bool blocked;
 
-        Thread(u16 tid) : tid(tid), pagemap(new mem::vmm::Pagemap()), gpr_state(new cpu::GPRState()), blocked(false) {}
+        Task(u16 tid) : tid(tid), pagemap(new mem::vmm::Pagemap()), gpr_state(new cpu::GPRState()), blocked(false) {}
     };
 
     void init();
-    Thread* new_kernel_thread(void *pc, bool enqueue);
+    Task* new_kernel_task(void *pc, bool enqueue);
     
     void scheduler_isr(u64 vec, cpu::GPRState *gpr_state);
 
     struct ScheduleQueue {
-        struct QueuedThread {
-            Thread *thread;
-            QueuedThread *next;
+        struct QueuedTask {
+            Task *task;
+            QueuedTask *next;
         };
         
-        QueuedThread *head;
+        QueuedTask *head;
 
-        void insert(Thread *thread);
+        void insert(Task *task);
     };
 
     struct SleepQueue {
-        struct QueuedThread {
-            Thread *thread;
-            QueuedThread *next;
+        struct QueuedTask {
+            Task *task;
+            QueuedTask *next;
             usize delta_time_ns;
         };
 
-        QueuedThread *head;
+        QueuedTask *head;
 
-        void insert(Thread *thread, usize time_ns);
+        void insert(Task *task, usize time_ns);
     };
 }

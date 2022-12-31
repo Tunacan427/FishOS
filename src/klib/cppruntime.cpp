@@ -1,8 +1,15 @@
-#include <kstd/cstdlib.hpp>
-#include <kstd/lock.hpp>
+#include <klib/cstdlib.hpp>
+#include <klib/lock.hpp>
 #include <panic.hpp>
 
-static kstd::Spinlock static_init_lock;
+extern "C" {
+    uptr __stack_chk_guard = 0xED1A449A97A8154E;
+    [[noreturn]] void __stack_chk_fail() {
+        panic("Stack smashing detected");
+    }
+}
+
+static klib::Spinlock static_init_lock;
 
 using __guard = u64;
 
@@ -56,19 +63,19 @@ extern "C" void __cxa_pure_virtual() {
 }
  
 void* operator new(usize size) {
-    return kstd::malloc(size);
+    return klib::malloc(size);
 }
  
 void* operator new[](usize size) {
-    return kstd::malloc(size);
+    return klib::malloc(size);
 }
  
 void operator delete(void *ptr) {
-    kstd::free(ptr);
+    klib::free(ptr);
 }
  
 void operator delete[](void *ptr) {
-    kstd::free(ptr);
+    klib::free(ptr);
 }
 
 void operator delete(void *ptr, usize size) {

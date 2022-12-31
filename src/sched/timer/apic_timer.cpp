@@ -2,8 +2,8 @@
 #include <sched/timer/hpet.hpp>
 #include <sched/timer/pit.hpp>
 #include <sched/sched.hpp>
-#include <kstd/lock.hpp>
-#include <kstd/cstdio.hpp>
+#include <klib/lock.hpp>
+#include <klib/cstdio.hpp>
 #include <cpu/interrupts/interrupts.hpp>
 #include <cpu/interrupts/apic.hpp>
 #include <cpu/interrupts/idt.hpp>
@@ -55,7 +55,7 @@ namespace sched::timer::apic_timer {
 
         stop();
         
-        kstd::printf("[INFO] APIC timer freq: %ld\n", freq);
+        klib::printf("[INFO] APIC timer freq: %ld\n", freq);
 /*
         LAPIC::write_reg(LAPIC::TIMER_DIVIDE, 3); // divide by 16
         LAPIC::write_reg(LAPIC::TIMER_INITIAL, freq * 4 / 16); // try to sleep 4 seconds with apic timer

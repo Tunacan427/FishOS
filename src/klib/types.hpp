@@ -18,7 +18,7 @@ using uptr = uintptr_t;
 
 using nullptr_t = decltype(nullptr);
 
-namespace kstd {
+namespace klib {
     template<typename T, T v>
     struct IntegralConstant {
         static constexpr T value = v;
