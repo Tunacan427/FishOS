@@ -56,13 +56,11 @@ all: $(ISO)
 runbios: $(ISO)
 	@echo "[QEMU]"
 	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
-		-drive id=disk,file=disk.img,if=virtio,format=raw \
 		-no-reboot -no-shutdown -M smm=off -s
 
 runuefi: installuefi
 	@echo "[QEMU]"
 	@qemu-system-x86_64 -cdrom $(ISO) -m 128M -serial stdio \
-		-drive id=disk,file=disk.img,if=virtio,format=raw -s \
 		-no-reboot -no-shutdown -M smm=off -smp 2 \
 		-drive if=pflash,format=raw,readonly=on,file=ovmf/OVMF_CODE.fd \
 		-drive if=pflash,format=raw,file=ovmf/OVMF_VARS.fd \
