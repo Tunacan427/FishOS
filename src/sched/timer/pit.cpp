@@ -17,21 +17,21 @@ namespace sched::timer::pit {
     }
 
     void set_reload(u16 count) {
-        klib::LockGuard<klib::Spinlock> guard(pit_lock);
+        klib::LockGuard guard(pit_lock);
         out<u8>(0x43, 0x34); // channel 0, lo/hi access mode, mode 2 (rate generator)
         out<u8>(0x40, count & 0xFF);
         out<u8>(0x40, count >> 8);
     }
 
     void set_divide(u16 divide) {
-        klib::LockGuard<klib::Spinlock> guard(pit_lock);
+        klib::LockGuard guard(pit_lock);
         out<u8>(0x43, 0x36); // channel 0, lo/hi access mode, mode 3 (square wave generator)
         out<u8>(0x40, divide & 0xFF);
         out<u8>(0x40, divide >> 8);
     }
 
     u16 get_current_count() {
-        klib::LockGuard<klib::Spinlock> guard(pit_lock);
+        klib::LockGuard guard(pit_lock);
         out<u8>(0x43, 0);
         u8 lo = in<u8>(0x40);
         u8 hi = in<u8>(0x40);

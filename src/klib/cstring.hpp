@@ -4,9 +4,9 @@
 
 namespace klib {
     int memcmp(const void *lhs, const void *rhs, usize size);
-    void* memcpy(void *dstptr, const void *srcptr, usize size);
-    void* memmove(void *dstptr, const void *srcptr, usize size);
-    void* memset(void *bufptr, int value, usize size);
+    void* memcpy(void *dst, const void *src, usize size);
+    void* memmove(void *dst, const void *src, usize size);
+    void* memset(void *dst, u8 value, usize size);
     usize strlen(const char *str);
     char* strcpy(char *dst, const char *src);
     char* strcat(char *dst, const char *src);

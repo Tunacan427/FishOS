@@ -95,60 +95,46 @@ extern "C" [[noreturn]] void _start() {
     terminal::set_height(fb.height / 16 - 1);
 */
     terminal::init(terminal_req.response);
-    klib::printf("[ OK ] Initialized the framebuffer\n");
+    klib::printf("Framebuffer: Initialized\n");
     
-    cpu::load_gdt();
-    klib::printf("[ OK ] Loaded new GDT\n");
-
-    cpu::interrupts::load_idt();
-    klib::printf("[ OK ] Loaded IDT\n");
-
-    {
-        u32 eax, ebx, ecx, edx;
-        cpu::cpuid(0, 0, &eax, &ebx, &ecx, &edx);
-        char vendor[12];
-        *(u32*)&vendor[0] = ebx;
-        *(u32*)&vendor[4] = edx;
-        *(u32*)&vendor[8] = ecx;
-        klib::printf("[INFO] CPUID Vendor: %.*s\n", 12, vendor);
-    }
+    cpu::init();
 
     mem::pmm::init(hhdm, memmap_req.response);
-    klib::printf("[ OK ] Initialized the PMM\n");
+    klib::printf("PMM: Initialized\n");
 
     mem::vmm::init(hhdm, memmap_req.response, kernel_addr_req.response);
-    klib::printf("[ OK ] Initialized the VMM\n");
+    klib::printf("VMM: Initialized\n");
 
     auto alloc = mem::BuddyAlloc::get();
     const u64 heap_size = 1024 * 1024 * 1024;
     alloc->init(~(u64)0 - heap_size - 0x1000 + 1, heap_size);
-    klib::printf("[ OK ] Initialized the memory allocator, base: %#lX\n", (uptr)alloc->head);
+    klib::printf("Allocator: Initialized, base: %#lX\n", (uptr)alloc->head);
 
-    klib::printf("[INFO] Parsing ACPI tables and enabling APIC\n");
+    klib::printf("ACPI: Parsing ACPI tables and enabling APIC\n");
     acpi::parse_rsdp((uptr)rsdp_req.response->address);
 
     auto smp_res = smp_req.response;
-    klib::printf("[INFO] SMP | x2APIC: %s\n", (smp_res->flags & 1) ? "yes" : "no");
+    klib::printf("CPU: SMP | x2APIC: %s\n", (smp_res->flags & 1) ? "yes" : "no");
     for (u32 i = 0; i < smp_res->cpu_count; i++) {
         auto cpu = smp_res->cpus[i];
         auto is_bsp = cpu->lapic_id == smp_res->bsp_lapic_id;
-        klib::printf("       Core %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp ? " (BSP)" : "", cpu->processor_id, cpu->lapic_id);
+        klib::printf("\tCore %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp ? " (BSP)" : "", cpu->processor_id, cpu->lapic_id);
         if (!is_bsp) {
             __atomic_store_n(&cpu->goto_address, &ap_start, __ATOMIC_SEQ_CST);
         }
     }
     
     ps2::kbd::init();
-    klib::printf("[ OK ] Initialized PS/2 keyboard\n");
+    klib::printf("PS/2 Keyboard: Initialized\n");
 /*
     sched::timer::pit::init();
-    klib::printf("[ OK ] Initialized PIT\n");
+    klib::printf("PIT: Initialized\n");
 */
     sched::timer::apic_timer::init();
-    klib::printf("[ OK ] Initialized APIC timer\n");
+    klib::printf("APIC Timer: Initialized\n");
 
     sched::init();
-    klib::printf("[ OK ] Initialized scheduler\n");
+    klib::printf("Scheduler: Initialized\n");
 
     asm("sti");
     while (true) asm("hlt");

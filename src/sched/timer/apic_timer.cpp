@@ -55,7 +55,7 @@ namespace sched::timer::apic_timer {
 
         stop();
         
-        klib::printf("[INFO] APIC timer freq: %ld\n", freq);
+        klib::printf("APIC Timer: Freq: %ld\n", freq);
 /*
         LAPIC::write_reg(LAPIC::TIMER_DIVIDE, 3); // divide by 16
         LAPIC::write_reg(LAPIC::TIMER_INITIAL, freq * 4 / 16); // try to sleep 4 seconds with apic timer

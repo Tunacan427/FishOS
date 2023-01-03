@@ -32,7 +32,7 @@ namespace mem::vmm {
 
         u32 eax, ebx, ecx, edx;
         cpu::cpuid(1, 0, &eax, &ebx, &ecx, &edx);
-        klib::printf("[INFO] CPUID Leaf 1: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
+        klib::printf("VMM: CPUID Leaf 1: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
 
         // panic if PAT is not available
         if (!(edx & (1 << 16)))
@@ -44,7 +44,7 @@ namespace mem::vmm {
         
         usize kernel_size = 0;
 
-        klib::printf("[INFO] Physical memory map:\n");
+        klib::printf("VMM: Physical memory map:\n");
         for (u64 i = 0; i < memmap_res->entry_count; i++) {
             auto entry = memmap_res->entries[i];
             const char *entry_name;
@@ -62,7 +62,7 @@ namespace mem::vmm {
             default: entry_name = "Unknown";
             }
 
-            klib::printf("       %s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
+            klib::printf("\t%s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
 
             if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE) {
                 kernel_pagemap.map_pages(entry->base, entry->base + hhdm, entry->length, flags);
@@ -71,10 +71,10 @@ namespace mem::vmm {
             }
         }
 
-        klib::printf("[INFO] Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
+        klib::printf("VMM: Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
         
 /*
-        klib::printf("[INFO] Kernel PMRs:\n");
+        klib::printf("VMM: Kernel PMRs:\n");
         for (usize i = 0; i < tag_pmrs->entries; i++) {
             auto pmr = tag_pmrs->pmrs[i];
             u64 flags = PAGE_PRESENT;
@@ -115,7 +115,7 @@ namespace mem::vmm {
     }
 
     void Pagemap::map_page(uptr phy, uptr virt, u64 flags) {
-        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
+        klib::LockGuard guard(vmm_lock);
         u64 *current_table = this->pml4;
         // klib::printf("Map page phy %#lX virt %#lX\n", phy, virt);
 
@@ -137,7 +137,7 @@ namespace mem::vmm {
     }
 
     void activate_pagemap(Pagemap *pagemap) {
-        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
+        klib::LockGuard guard(vmm_lock);
         if (active_pagemap) active_pagemap->active = false;
         active_pagemap = pagemap;
         active_pagemap->active = true;
@@ -145,7 +145,7 @@ namespace mem::vmm {
     }
 
     bool try_demand_page(uptr virt) {
-        klib::LockGuard<klib::Spinlock> guard(vmm_lock);
+        klib::LockGuard guard(vmm_lock);
         u64 *current_table = (u64*)PML4;
 
         current_table = page_table_next_level(current_table, (virt >> 39) & 0x1FF);

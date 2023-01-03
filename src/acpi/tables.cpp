@@ -22,14 +22,14 @@ namespace acpi {
             panic("RSDP signature incorrect");
         if (!do_checksum(rsdp_addr, sizeof(RSDP1)))
             panic("RSDP1 checksum incorrect");
-        klib::printf("[INFO] RSDP OEM ID: %.*s\n", 6, rsdp1->oem_id);
+        klib::printf("ACPI: RSDP OEM ID: %.*s\n", 6, rsdp1->oem_id);
         if (rsdp1->revision == 0) {
             auto rsdt = (RSDT*)(rsdp1->rsdt_addr + hhdm);
             if (klib::memcmp(rsdt->signature, "RSDT", 4))
                 panic("RSDT signature incorrect");
             if (!do_checksum((uptr)rsdt, rsdt->size))
                 panic("RSDT checksum incorrect");
-            klib::printf("[INFO] RSDT OEM ID: %.*s\n", 6, rsdt->oem_id);
+            klib::printf("ACPI: RSDT OEM ID: %.*s\n", 6, rsdt->oem_id);
 
             for (usize i = 0; i < (rsdt->size - sizeof(SDT)) / 4; i++) {
                 auto sdt = (SDT*)(rsdt->sdt_array[i] + hhdm);
@@ -46,7 +46,7 @@ namespace acpi {
                 panic("XSDT signature incorrect");
             if (!do_checksum((uptr)xsdt, xsdt->size))
                 panic("XSDT checksum incorrect");
-            klib::printf("[INFO] XSDT OEM ID: %.*s\n", 6, xsdt->oem_id);
+            klib::printf("ACPI: XSDT OEM ID: %.*s\n", 6, xsdt->oem_id);
 
             for (usize i = 0; i < (xsdt->size - sizeof(SDT)) / 8; i++) {
                 auto sdt = (SDT*)(xsdt->sdt_array[i] + hhdm);
@@ -56,7 +56,7 @@ namespace acpi {
     }
 
     void parse_sdt(SDT *sdt) {
-        klib::printf("[INFO] Found table with signature: %.*s\n", 4, sdt->signature);
+        klib::printf("ACPI: Found table with signature: %.*s\n", 4, sdt->signature);
         if (!do_checksum((uptr)sdt, sdt->size))
             panic("ACPI table with signature %.*s has incorrect checksum", 4, sdt->signature);
         
@@ -70,31 +70,39 @@ namespace acpi {
     void parse_madt(MADT *madt) {
         using namespace cpu::interrupts;
         uptr hhdm = mem::vmm::get_hhdm();
-        klib::printf("[INFO] Parsing MADT, LAPIC phy addr: %#X (might be overridden)\n", madt->lapic_addr);
+        klib::printf("ACPI: Parsing MADT, LAPIC phy addr: %#X (might be overridden)\n", madt->lapic_addr);
 
         for (auto entry = (MADT::Entry*)((uptr)madt + sizeof(MADT)); (uptr)entry < (uptr)madt + madt->size; entry = (MADT::Entry*)((uptr)entry + entry->size)) {
             if (entry->type == MADT::LAPIC) {
                 auto lapic_entry = (MADT::EntryLAPIC*)entry;
-                klib::printf("[INFO] LAPIC | ID: %d, Processor ID: %d\n", lapic_entry->processor_id, lapic_entry->lapic_id);
-                lapics().push_back((LAPIC) { lapic_entry->lapic_id, lapic_entry->processor_id });
+                klib::printf("ACPI: LAPIC | ID: %d, Processor ID: %d", lapic_entry->processor_id, lapic_entry->lapic_id);
+                if (lapic_entry->flags & 0b1)
+                    klib::printf(", enabled");
+                else
+                    klib::printf(", disabled");
+                if (lapic_entry->flags & 0b11)
+                    klib::printf(", online capable");
+                klib::putchar('\n');
+                if (lapic_entry->flags & 0b1)
+                    lapics().push_back((LAPIC) { lapic_entry->lapic_id, lapic_entry->processor_id });
             } else if (entry->type == MADT::IOAPIC) {
                 auto ioapic_entry = (MADT::EntryIOAPIC*)entry;
-                klib::printf("[INFO] IOAPIC | ID: %d, Phy Addr: %#X, GSI base: %d\n", ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
+                klib::printf("ACPI: IOAPIC | ID: %d, Phy Addr: %#X, GSI base: %d\n", ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
                 mem::vmm::get_kernel_pagemap()->map_page(ioapic_entry->ioapic_addr, ioapic_entry->ioapic_addr + hhdm, PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE | PAGE_CACHE_DISABLE);
                 IOAPIC ioapic(ioapic_entry->ioapic_id, ioapic_entry->ioapic_addr, ioapic_entry->gsi_base);
                 ioapics().push_back(ioapic);
             } else if (entry->type == MADT::IOAPIC_IRQ_SOURCE_OVERRIDE) {
                 auto override_entry = (MADT::EntryIOAPICIRQSourceOverride*)entry;
-                klib::printf("[INFO] IOAPIC IRQ Source Override | IRQ: %d, GSI: %d, Flags: %x\n", override_entry->irq_source, override_entry->gsi, override_entry->flags);
+                klib::printf("ACPI: IOAPIC IRQ Source Override | IRQ: %d, GSI: %d, Flags: %x\n", override_entry->irq_source, override_entry->gsi, override_entry->flags);
                 override_irq_source(override_entry->irq_source, override_entry->gsi, override_entry->flags);
             } else if (entry->type == MADT::LAPIC_NMI) {
                 auto nmi_entry = (MADT::EntryLAPICNMI*)entry;
-                klib::printf("[INFO] LAPIC NMI | Processor ID: %d, LINT%d, Flags: %x\n", nmi_entry->processor_id, nmi_entry->lint, nmi_entry->flags);
+                klib::printf("ACPI: LAPIC NMI | Processor ID: %d, LINT%d, Flags: %x\n", nmi_entry->processor_id, nmi_entry->lint, nmi_entry->flags);
             } else if (entry->type == MADT::LAPIC_ADDR_OVERRIDE) {
                 auto override_entry = (MADT::EntryLAPICAddressOverride*)entry;
-                klib::printf("[INFO] LAPIC Addr Override | Phy Addr: %#lX\n", override_entry->lapic_addr);
+                klib::printf("ACPI: LAPIC Addr Override | Phy Addr: %#lX\n", override_entry->lapic_addr);
             } else {
-                klib::printf("[INFO] Found unknown entry, type: %d\n", entry->type);
+                klib::printf("ACPI: Found unknown entry, type: %d\n", entry->type);
             }
         }
 
@@ -104,7 +112,7 @@ namespace acpi {
         for (auto entry = (MADT::Entry*)((uptr)madt + sizeof(MADT)); (uptr)entry < (uptr)madt + madt->size; entry = (MADT::Entry*)((uptr)entry + entry->size)) {
             if (entry->type == MADT::LAPIC_NMI) {
                 auto nmi_entry = (MADT::EntryLAPICNMI*)entry;
-                LAPIC bsp;
+                LAPIC bsp {};
                 for (auto &lapic : lapics()) {
                     if (lapic.id == LAPIC::read_id()) {
                         bsp = lapic;
@@ -134,7 +142,7 @@ namespace acpi {
     }
 
     void parse_hpet(HPET *table) {
-        klib::printf("[INFO] Parsing HPET\n");
+        klib::printf("ACPI: Parsing HPET\n");
         sched::timer::hpet::init(table);
     }
 }

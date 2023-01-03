@@ -34,13 +34,13 @@ namespace sched::timer::hpet {
         auto info = regs.read<u64>(GENERAL_INFO);
         period = info >> 32;
         freq = 1'000'000'000'000'000 / period;
-        klib::printf("[INFO] Vendor: %04lX, Period: %ld fs, Freq: %ld Hz\n", (info >> 16) & 0xFFFF, period, freq);
+        klib::printf("HPET: Vendor: %04lX, Period: %ld fs, Freq: %ld Hz\n", (info >> 16) & 0xFFFF, period, freq);
 
         regs.write<u64>(GENERAL_CONFIG, 0); // disable hpet
         regs.write<u64>(MAIN_COUNTER, 0); // set counter to 0
         regs.write<u64>(GENERAL_CONFIG, 1); // enable hpet
 
         initialized = true;
-        klib::printf("[ OK ] Initialized HPET\n");
+        klib::printf("HPET: Initialized\n");
     }
 }

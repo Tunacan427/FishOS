@@ -24,7 +24,7 @@ namespace mem::pmm {
             if (entry->type == LIMINE_MEMMAP_USABLE) 
                 total_usable_size += entry->length;
         }
-        klib::printf("[INFO] Total usable memory size: %ld KiB\n", total_usable_size / 1024);
+        klib::printf("PMM: Total usable memory size: %ld KiB\n", total_usable_size / 1024);
 
         page_bitmap->m_size = total_mem_size / 0x1000;
 
@@ -32,7 +32,7 @@ namespace mem::pmm {
             auto entry = memmap_res->entries[i];
             if (entry->type == LIMINE_MEMMAP_USABLE && entry->length >= (page_bitmap->m_size / 8)) {
                 page_bitmap->m_buffer = (u8*)(entry->base + hhdm);
-                klib::printf("[INFO] Bitmap virt addr: %#lX, bits: %#lX\n", (uptr)page_bitmap->m_buffer, page_bitmap->m_size);
+                klib::printf("PMM: Bitmap virt addr: %#lX, bits: %#lX\n", (uptr)page_bitmap->m_buffer, page_bitmap->m_size);
                 break;
             }
         }
@@ -48,7 +48,7 @@ namespace mem::pmm {
                     page_start++;
                 if (entry->length % 0x1000)
                     page_end--;
-                for (usize i = page_start; i <= page_end; i++)
+                for (usize i = page_start; i < page_end; i++)
                     page_bitmap->set(i, false);
             }
         }
@@ -92,7 +92,7 @@ namespace mem::pmm {
     }
 
     void* alloc_pages(usize num_pages) {
-        klib::LockGuard<klib::Spinlock> guard(pmm_lock);
+        klib::LockGuard guard(pmm_lock);
 
         usize last = page_bitmap_index;
         void *result = inner_alloc(num_pages, get_bitmap()->m_size);
@@ -115,7 +115,7 @@ namespace mem::pmm {
     }
 
     void free_pages(void *phy, usize num_pages) {
-        klib::LockGuard<klib::Spinlock> guard(pmm_lock);
+        klib::LockGuard guard(pmm_lock);
         auto page_bitmap = get_bitmap();
 
         usize i = ((uptr)phy) / 0x1000;

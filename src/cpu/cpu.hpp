@@ -4,8 +4,21 @@
 #include <panic.hpp>
 
 namespace cpu {
+    void init();
+
+    struct [[gnu::packed]] TSS {
+        u32 reserved0;
+        u64 rsp[3];
+        u64 reserved1;
+        u64 ist[7];
+        u64 reserved2;
+        u16 reserved3;
+        u16 io_map_base;
+    };
+
     struct [[gnu::packed]] Local {
         u64 cpu_number;
+        TSS tss;
         u64 lapic_id;
         u64 lapic_timer_freq;
     };
@@ -159,9 +172,5 @@ namespace cpu {
         volatile u32 ret;
         asm volatile("inl %1, %0" : "=a" (ret) : "Nd" (port));
         return ret;
-    }
-
-    static inline void io_wait() {
-        out<u8>(0x80, 0); 
     }
 }

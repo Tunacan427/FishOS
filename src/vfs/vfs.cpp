@@ -11,7 +11,7 @@ namespace vfs {
     }
 
     void register_filesystem(klib::String &identifier, FileSystem *fs) {
-        klib::LockGuard<klib::Spinlock> guard(vfs_lock);
+        klib::LockGuard guard(vfs_lock);
         file_systems().insert(identifier, fs);
     }
 
@@ -34,6 +34,8 @@ namespace vfs {
             if (path[i] == '/') continue;
             
         }
+        
+        return nullptr;
     }
 
     Node::Node(FileSystem *fs, Node *parent, klib::String name, bool dir) : m_filesystem(fs), m_name(name), m_parent(parent) {

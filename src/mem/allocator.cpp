@@ -121,7 +121,7 @@ namespace mem {
     }
 
     void* BuddyAlloc::malloc(usize size) {
-        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
+        klib::LockGuard guard(alloc_lock);
 
         if (size != 0) {
             usize actual_size = size_required(size + sizeof(Block));
@@ -151,7 +151,7 @@ namespace mem {
             return nullptr;
         }
 
-        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
+        klib::LockGuard guard(alloc_lock);
 
         if (uptr old_data = (uptr)ptr) {
             if ((uptr)this->head > old_data) return nullptr;
@@ -185,7 +185,7 @@ namespace mem {
     }
 
     void BuddyAlloc::free(void *ptr) {
-        klib::LockGuard<klib::Spinlock> guard(alloc_lock);
+        klib::LockGuard guard(alloc_lock);
 
         if (uptr data = (uptr)ptr) {
             if ((uptr)this->head > data) return;

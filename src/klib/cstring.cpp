@@ -34,11 +34,11 @@ namespace klib {
         return dstptr;
     }
 
-    void* memset(void *bufptr, int value, usize size) {
-        u8 *buf = (u8*)bufptr;
+    void* memset(void *dstptr, u8 value, usize size) {
+        u8 *dst = (u8*)dstptr;
         for (usize i = 0; i < size; i++)
-            buf[i] = (u8)value;
-        return bufptr;
+            dst[i] = (u8)value;
+        return dstptr;
     }
 
     usize strlen(const char *str) {

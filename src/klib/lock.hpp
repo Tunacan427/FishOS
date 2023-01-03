@@ -7,14 +7,14 @@ namespace klib {
         volatile bool locked = false;
 
         inline void lock() {
-            asm volatile("cli");
+            // asm volatile("cli");
             while (__atomic_test_and_set(&this->locked, __ATOMIC_ACQUIRE))
                 asm volatile("pause");
         }
 
         inline void unlock() {
             __atomic_clear(&this->locked, __ATOMIC_RELEASE);
-            asm volatile("sti");
+            // asm volatile("sti");
         }
     };
 
