@@ -5,29 +5,27 @@ CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CFLAGS = -O3 -g -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined 
+CFLAGS = -O3 -g3 -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined
 CPPFLAGS = $(CFLAGS)
 NASMFLAGS = -felf64 -g
 LDFLAGS =
 
-INTERNALLDFLAGS :=         \
-	-nostartfiles          \
-	-nodefaultlibs         \
-	-nostdlib              \
-	-no-pie                \
-	-zmax-page-size=0x1000 \
-	-static
+INTERNALLDFLAGS :=          \
+	-nostdlib               \
+	-static                 \
+	-z max-page-size=0x1000 \
+	-T linker.ld
 
 INTERNALCFLAGS :=           \
 	-Isrc                   \
 	-ffreestanding          \
 	-fstack-protector       \
+	-fno-pie                \
 	-fno-pic                \
-	-fno-strict-aliasing    \
-	-fno-omit-frame-pointer \
+    -march=x86-64           \
+    -mabi=sysv              \
 	-mno-80387              \
 	-mno-mmx                \
-	-mno-3dnow              \
 	-mno-sse                \
 	-mno-sse2               \
 	-mno-red-zone           \
@@ -47,7 +45,7 @@ CPPFILES := $(shell find ./src -type f -name '*.cpp')
 OBJ += $(CPPFILES:./src/%.cpp=obj/%.o)
 ASMFILES := $(shell find ./src -type f -name '*.asm')
 OBJ += $(ASMFILES:./src/%.asm=obj/%.o)
-# OBJ += obj/font.o
+OBJ += obj/font.o
 
 .PHONY: all clean runbios runuefi installuefi
 
@@ -86,7 +84,7 @@ $(ISO): $(KERNEL)
 # Link rules for the final kernel executable.
 $(KERNEL): $(OBJ)
 	@echo "[LD] $@"
-	@$(CPP) $(LDFLAGS) $(INTERNALLDFLAGS) $(OBJ) -n -T linker.ld -o $@
+	@$(CPP) $(OBJ) $(LDFLAGS) $(INTERNALLDFLAGS) -o $@
 
 # Compilation rules for *.c files.
 obj/%.o: src/%.c

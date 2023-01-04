@@ -81,12 +81,12 @@ extern "C" [[noreturn]] void _start() {
     auto &fb = gfx::main_fb();
     auto fb_res = fb_req.response->framebuffers[0];
     fb = {
-        .addr = (u8*)fb_res->address,
-        .width = (u32)fb_res->width,
-        .height = (u32)fb_res->height,
-        .depth = fb_res->bpp,
-        .pitch = (u32)fb_res->pitch,
-        .pixel_width = (u32)fb_res->bpp / 8
+        .m_addr = (u8*)fb_res->address,
+        .m_width = (u32)fb_res->width,
+        .m_height = (u32)fb_res->height,
+        .m_depth = fb_res->bpp,
+        .m_pitch = (u32)fb_res->pitch,
+        .m_pixel_width = (u32)fb_res->bpp / 8
     };
 /*
     fb.fill_rect(0, 0, fb.width, fb.height, 0xf49b02);
@@ -132,7 +132,7 @@ extern "C" [[noreturn]] void _start() {
 */
     sched::timer::apic_timer::init();
     klib::printf("APIC Timer: Initialized\n");
-
+    
     sched::init();
     klib::printf("Scheduler: Initialized\n");
 

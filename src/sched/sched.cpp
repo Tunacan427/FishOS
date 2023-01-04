@@ -77,9 +77,9 @@ namespace sched {
             x = x_inc ? x + 1 : x - 1;
             y = y_inc ? y + 1 : y - 1;
             frames++;
-            if (x + 16 >= fb.width) x_inc = false;
+            if (x + 16 >= fb.m_width) x_inc = false;
             if (x <= 0) x_inc = true;
-            if (y + 16 >= fb.height) y_inc = false;
+            if (y + 16 >= fb.m_height) y_inc = false;
             if (y <= 0) y_inc = true;
             if (frames == test_speed) {
                 frames = 0;
@@ -94,15 +94,15 @@ namespace sched {
     [[noreturn]] void test_task_2() {
         klib::printf("hello from task 2\n");
         auto fb = gfx::main_fb();
-        i64 x = fb.width, y = fb.height, old_x = x, old_y = y, frames = 0, x_inc = false, y_inc = false;
+        i64 x = fb.m_width, y = fb.m_height, old_x = x, old_y = y, frames = 0, x_inc = false, y_inc = false;
         while (true) {
             fb.fill_rect(x, y, 16, 16, 0xFF0000);
             x = x_inc ? x + 1 : x - 1;
             y = y_inc ? y + 1 : y - 1;
             frames++;
-            if (x + 16 >= fb.width) x_inc = false;
+            if (x + 16 >= fb.m_width) x_inc = false;
             if (x <= 0) x_inc = true;
-            if (y + 16 >= fb.height) y_inc = false;
+            if (y + 16 >= fb.m_height) y_inc = false;
             if (y <= 0) y_inc = true;
             if (frames == test_speed) {
                 frames = 0;
