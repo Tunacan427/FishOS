@@ -10,7 +10,6 @@ namespace mem::pmm {
     klib::Bitmap* get_bitmap();
     usize get_total_mem();
 
-    void* alloc_pages(usize num_pages);
-    void* calloc_pages(usize num_pages);
-    void free_pages(void *phy, usize num_pages);
+    uptr alloc_pages(usize num_pages);
+    void free_pages(uptr phy, usize num_pages);
 }

@@ -1,4 +1,3 @@
-#include "mem/vmm.hpp"
 #include <mem/pmm.hpp>
 #include <klib/lock.hpp>
 #include <klib/cstdio.hpp>
@@ -18,12 +17,13 @@ namespace mem::pmm {
 
         for (usize i = 0; i < memmap_res->entry_count; i++) {
             auto entry = memmap_res->entries[i];
-            if (i == memmap_res->entry_count - 1) {
+            if (i == memmap_res->entry_count - 1)
                 total_mem_size = entry->base + entry->length;
-            }
-            if (entry->type == LIMINE_MEMMAP_USABLE) 
+            
+            if (entry->type == LIMINE_MEMMAP_USABLE)
                 total_usable_size += entry->length;
         }
+        
         klib::printf("PMM: Total usable memory size: %ld KiB\n", total_usable_size / 1024);
 
         page_bitmap->m_size = total_mem_size / 0x1000;
@@ -53,7 +53,7 @@ namespace mem::pmm {
             }
         }
         
-        usize bitmap_self_index = ((uptr)page_bitmap->m_buffer - hhdm) / 0x1000;
+        usize bitmap_self_index = (uptr(page_bitmap->m_buffer) - hhdm) / 0x1000;
         for (usize i = bitmap_self_index; i < bitmap_self_index + page_bitmap->m_size / 0x8000; i++)
             page_bitmap->set(i, true);
     }
@@ -67,7 +67,7 @@ namespace mem::pmm {
         return total_mem_size;
     }
 
-    void* inner_alloc(usize num_pages, usize limit) {
+    uptr inner_alloc(usize num_pages, usize limit) {
         auto page_bitmap = get_bitmap();
         usize pages = 0;
 
@@ -80,7 +80,7 @@ namespace mem::pmm {
                     for (usize i = beginning; i < page_bitmap_index; i++) {
                         page_bitmap->set(i, true);
                     }
-                    return (void*)(beginning * 0x1000);
+                    return beginning * 0x1000;
                 }
             } else {
                 page_bitmap_index++;
@@ -88,37 +88,31 @@ namespace mem::pmm {
             }
         }
 
-        return nullptr;
+        return 0;
     }
 
-    void* alloc_pages(usize num_pages) {
+    uptr alloc_pages(usize num_pages) {
         klib::LockGuard guard(pmm_lock);
 
         usize last = page_bitmap_index;
-        void *result = inner_alloc(num_pages, get_bitmap()->m_size);
+        uptr result = inner_alloc(num_pages, get_bitmap()->m_size);
 
-        if (result == nullptr) {
+        if (result == 0) {
             page_bitmap_index = 0;
             result = inner_alloc(num_pages, last);
-            if (result == nullptr) {
-                panic("Out of memory");
+            if (result == 0) {
+                panic("Out of physical memory");
             }
         }
 
         return result;
     }
 
-    void* calloc_pages(usize num_pages) {
-        void *pages = alloc_pages(num_pages);
-        klib::memset((void*)((uptr)pages + vmm::get_hhdm()), 0, num_pages * 0x1000);
-        return pages;
-    }
-
-    void free_pages(void *phy, usize num_pages) {
+    void free_pages(uptr phy, usize num_pages) {
         klib::LockGuard guard(pmm_lock);
         auto page_bitmap = get_bitmap();
 
-        usize i = ((uptr)phy) / 0x1000;
+        usize i = phy / 0x1000;
         if (i < page_bitmap_index)
             page_bitmap_index = i;
         

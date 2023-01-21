@@ -21,7 +21,9 @@ namespace sched {
     };
 
     void init();
-    Task* new_kernel_task(void *pc, bool enqueue);
+    void start();
+    Task* new_kernel_task(uptr ip, bool enqueue);
+    [[noreturn]] void dequeue_and_die();
     
     void scheduler_isr(u64 vec, cpu::GPRState *gpr_state);
 

@@ -30,18 +30,6 @@ namespace mem::vmm {
         kernel_phy_base = kernel_addr_res->physical_base;
         kernel_virt_base = kernel_addr_res->virtual_base;
 
-        u32 eax, ebx, ecx, edx;
-        cpu::cpuid(1, 0, &eax, &ebx, &ecx, &edx);
-        klib::printf("VMM: CPUID Leaf 1: EAX: %#X, EBX: %#X, ECX: %#X, EDX: %#X\n", eax, ebx, ecx, edx);
-
-        // panic if PAT is not available
-        if (!(edx & (1 << 16)))
-            panic("CPU does not support PAT");
-
-        // hardcode PAT
-        // 0: WB  1: WT  2: UC-  3: UC  4: WB  5: WT  6: WC  7: WP
-        cpu::MSR::write(cpu::MSR::IA32_PAT, (6 << 0) | (4 << 8) | (7 << 16) | (0 << 24) | (6l << 32) | (4l << 40) | (1l << 48) | (5l << 56));
-        
         usize kernel_size = 0;
 
         klib::printf("VMM: Physical memory map:\n");
@@ -64,11 +52,8 @@ namespace mem::vmm {
 
             klib::printf("\t%s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
 
-            if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE) {
+            if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE)
                 kernel_pagemap.map_pages(entry->base, entry->base + hhdm, entry->length, flags);
-                if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER)
-                    kernel_pagemap.map_pages(entry->base, entry->base, entry->length, flags);
-            }
         }
 
         klib::printf("VMM: Kernel base addresses | phy: %#lX, virt: %#lX\n", kernel_phy_base, kernel_virt_base);
@@ -106,9 +91,10 @@ namespace mem::vmm {
             next_table = (u64*)((current_entry & 0x000FFFFFFFFFF000) + hhdm);
             // klib::printf("Page table exists, next table at %#lX\n", (u64)current_table);
         } else {
-            next_table = (u64*)pmm::calloc_pages(1);
-            current_table[index] = (u64)next_table | PAGE_PRESENT | PAGE_WRITABLE;
-            next_table = (u64*)((uptr)next_table + hhdm);
+            uptr new_page = pmm::alloc_pages(1);
+            klib::memset((void*)(new_page + hhdm), 0, 0x1000);
+            current_table[index] = new_page | PAGE_PRESENT | PAGE_WRITABLE;
+            next_table = (u64*)(new_page + hhdm);
             // klib::printf("Page table created at %#lX, current entry %#lX\n", (u64)next_table, current_entry);
         }
         return next_table;
@@ -133,7 +119,7 @@ namespace mem::vmm {
         usize num_pages = align_page(size) / 0x1000;
         // klib::printf("Mapping %ld pages phy %#lX virt %#lX\n", num_pages, phy, virt);
         for (usize i = 0; i < num_pages; i++)
-            this->map_page(phy + (i * 0x1000), virt + (i * 0x1000), flags);
+            map_page(phy + (i * 0x1000), virt + (i * 0x1000), flags);
     }
 
     void activate_pagemap(Pagemap *pagemap) {
@@ -155,9 +141,12 @@ namespace mem::vmm {
         u64 *entry = &current_table[virt >> 12 & 0x1FF];
 
         if (!(*entry & PAGE_PRESENT)) {
-            if (virt >= heap_begin && virt <= heap_end) // kernel heap, allocate a new page
-                *entry = ((u64)pmm::calloc_pages(1) & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
-            else // direct map
+            if (virt >= heap_begin && virt <= heap_end) {
+                // kernel heap, allocate a new page
+                uptr new_page = pmm::alloc_pages(1);
+                klib::memset((void*)(new_page + hhdm), 0, 0x1000);
+                *entry = new_page | PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
+            } else // direct map
                 *entry = ((virt - hhdm) & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE;
             return false;
         }

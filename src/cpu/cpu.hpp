@@ -1,10 +1,13 @@
 #pragma once
 
 #include <klib/types.hpp>
+#include <limine.hpp>
 #include <panic.hpp>
 
 namespace cpu {
-    void init();
+    void early_init();
+    void smp_init(limine_smp_response *smp_res);
+    void init(limine_smp_info *info);
 
     struct [[gnu::packed]] TSS {
         u32 reserved0;
@@ -68,7 +71,7 @@ namespace cpu {
     static inline void cpuid(u32 leaf, u32 subleaf, u32 *eax, u32 *ebx, u32 *ecx, u32 *edx) {
         asm volatile("cpuid" : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx) : "a" (leaf), "c" (subleaf));
     }
-
+    
     static inline void write_cr3(u64 cr3) {
         asm volatile("mov %0, %%cr3" : : "r" (cr3));
     }

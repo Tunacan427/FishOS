@@ -27,7 +27,7 @@ namespace klib {
 
             friend bool operator ==(const iterator &a, const iterator &b) { return a.ptr == b.ptr; };
             friend bool operator !=(const iterator &a, const iterator &b) { return a.ptr != b.ptr; };
-            friend size_t operator -(const iterator &a, const iterator &b) { return a.ptr - b.ptr; };
+            friend usize operator -(const iterator &a, const iterator &b) { return a.ptr - b.ptr; };
             friend bool operator <(const iterator &a, const iterator &b) { return a.ptr < b.ptr; };
 
         private:

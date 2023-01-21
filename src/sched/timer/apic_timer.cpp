@@ -43,9 +43,11 @@ namespace sched::timer::apic_timer {
         LAPIC::write_reg(LAPIC::TIMER_DIVIDE, 3); // divide by 16
 
         if (hpet::is_initialized()) {
+            klib::printf("APIC Timer: Using HPET for calibration\n");
             LAPIC::write_reg(LAPIC::TIMER_INITIAL, 0xFFFFFFFF);
             hpet::sleep_ms(100);
         } else {
+            klib::printf("APIC Timer: Using PIT for calibration\n");
             pit::prepare_sleep(100);
             LAPIC::write_reg(LAPIC::TIMER_INITIAL, 0xFFFFFFFF);
             pit::perform_sleep();

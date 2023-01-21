@@ -1,4 +1,5 @@
 #include <cpu/interrupts/idt.hpp>
+#include <cpu/gdt/gdt.hpp>
 #include <cpu/cpu.hpp>
 #include <mem/vmm.hpp>
 #include <klib/cstdio.hpp>
@@ -29,7 +30,7 @@ namespace cpu::interrupts {
         entry->offset1 = (u64)wrapper & 0xFFFF;
         entry->offset2 = ((u64)wrapper & 0xFFFF0000) >> 16;
         entry->offset3 = ((u64)wrapper & 0xFFFFFFFF00000000) >> 32;
-        entry->selector = 40; // kernel code segment
+        entry->selector = u16(GDTSegment::KERNEL_CODE_64);
         entry->attributes = (1 << 15) | (int(type) << 8); // set present bit and type
         entry->reserved = 0;
     }

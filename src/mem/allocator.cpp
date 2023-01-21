@@ -3,9 +3,9 @@
 #include <klib/lock.hpp>
 #include <klib/cstdio.hpp>
 
-static klib::Spinlock alloc_lock;
-
 namespace mem {
+    static klib::Spinlock alloc_lock;
+
     BuddyAlloc::Block* BuddyAlloc::Block::split_until(usize size) {
         if (size == 0) return nullptr;
         auto block = this;

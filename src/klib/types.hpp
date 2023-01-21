@@ -72,7 +72,7 @@ namespace klib {
     template<typename T> struct RemoveReference<T&&> { using type = T; };
 
     template<typename T>
-    constexpr auto move(T&& t) noexcept { 
+    constexpr auto move(T&& t) noexcept {
         return static_cast<typename RemoveReference<T>::type&&>(t); 
     }
 

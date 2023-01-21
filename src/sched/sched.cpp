@@ -1,3 +1,4 @@
+#include "cpu/gdt/gdt.hpp"
 #include <sched/sched.hpp>
 #include <sched/timer/apic_timer.hpp>
 #include <mem/pmm.hpp>
@@ -32,10 +33,12 @@ namespace sched {
 
         for (QueuedTask **current = &head; ; current = &(*current)->next) {
             if (*current == nullptr) goto add;
+
             if (time_ns >= (*current)->delta_time_ns) {
                 time_ns -= (*current)->delta_time_ns;
                 continue;
             }
+
         add:
             (*current) = new QueuedTask { task, *current, time_ns };
             if (auto next = (*current)->next) next->delta_time_ns -= time_ns;
@@ -43,21 +46,21 @@ namespace sched {
         }
     }
 
-    Task* new_kernel_task(void *pc, bool enqueue) {
+    Task* new_kernel_task(uptr ip, bool enqueue) {
         static u16 tid = 0;
         Task *task = new Task(tid++);
 
-        uptr stack_phy = (uptr)mem::pmm::calloc_pages(stack_size / 0x1000);
+        uptr stack_phy = (uptr)mem::pmm::alloc_pages(stack_size / 0x1000);
         task->stack = stack_phy + stack_size + mem::vmm::get_hhdm();
 
         task->running_on = 0;
         task->pagemap->pml4 = mem::vmm::get_kernel_pagemap()->pml4;
-        task->gpr_state->cs = 40; // 64-bit kernel code 
-        task->gpr_state->ds = 48; // 64-bit kernel data
-        task->gpr_state->es = 48; // 64-bit kernel data
-        task->gpr_state->ss = 48; // 64-bit kernel data
+        task->gpr_state->cs = u64(cpu::GDTSegment::KERNEL_CODE_64);
+        task->gpr_state->ds = u64(cpu::GDTSegment::KERNEL_DATA_64);
+        task->gpr_state->es = u64(cpu::GDTSegment::KERNEL_DATA_64);
+        task->gpr_state->ss = u64(cpu::GDTSegment::KERNEL_DATA_64);
         task->gpr_state->rflags = 0x202; // only set the interrupt flag 
-        task->gpr_state->rip = (u64)pc;
+        task->gpr_state->rip = ip;
         task->gpr_state->rsp = task->stack;
 
         if (enqueue)
@@ -66,20 +69,20 @@ namespace sched {
         return task;
     }
 
-    const i64 test_speed = 4;
+    const i64 test_speed = 1;
 
     [[noreturn]] void test_task_1() {
         klib::printf("hello from task 1\n");
-        auto fb = gfx::main_fb();
-        i64 x = 0, y = 0, old_x = 0, old_y = 0, frames = 0, x_inc = true, y_inc = true;
+        auto fb = gfx::screen_fb();
+        i64 x = fb.width / 2, y = 0, old_x = x, old_y = y, frames = 0, x_inc = true, y_inc = true;
         while (true) {
             fb.fill_rect(x, y, 16, 16, 0x0000FF);
             x = x_inc ? x + 1 : x - 1;
             y = y_inc ? y + 1 : y - 1;
             frames++;
-            if (x + 16 >= fb.m_width) x_inc = false;
-            if (x <= 0) x_inc = true;
-            if (y + 16 >= fb.m_height) y_inc = false;
+            if (x + 16 >= fb.width) x_inc = false;
+            if (x <= fb.width / 2) x_inc = true;
+            if (y + 16 >= fb.height) y_inc = false;
             if (y <= 0) y_inc = true;
             if (frames == test_speed) {
                 frames = 0;
@@ -93,16 +96,16 @@ namespace sched {
 
     [[noreturn]] void test_task_2() {
         klib::printf("hello from task 2\n");
-        auto fb = gfx::main_fb();
-        i64 x = fb.m_width, y = fb.m_height, old_x = x, old_y = y, frames = 0, x_inc = false, y_inc = false;
+        auto fb = gfx::screen_fb();
+        i64 x = fb.width, y = fb.height, old_x = x, old_y = y, frames = 0, x_inc = false, y_inc = false;
         while (true) {
             fb.fill_rect(x, y, 16, 16, 0xFF0000);
             x = x_inc ? x + 1 : x - 1;
             y = y_inc ? y + 1 : y - 1;
             frames++;
-            if (x + 16 >= fb.m_width) x_inc = false;
-            if (x <= 0) x_inc = true;
-            if (y + 16 >= fb.m_height) y_inc = false;
+            if (x + 16 >= fb.width) x_inc = false;
+            if (x <= fb.width / 2) x_inc = true;
+            if (y + 16 >= fb.height) y_inc = false;
             if (y <= 0) y_inc = true;
             if (frames == test_speed) {
                 frames = 0;
@@ -115,9 +118,33 @@ namespace sched {
     }
 
     void init() {
-        new_kernel_task((void*)test_task_1, true);
-        new_kernel_task((void*)test_task_2, true);
-        timer::apic_timer::oneshot(10000);
+        new_kernel_task(uptr(test_task_1), true);
+        new_kernel_task(uptr(test_task_2), true);
+    }
+
+    void start() {
+        sched::timer::apic_timer::oneshot(1000);
+    }
+
+    [[noreturn]] void dequeue_and_die() {
+        cpu::cli();
+        
+        ScheduleQueue::QueuedTask *prev = nullptr;
+        for (auto current = schedule_queue.head; ; current = current->next) {
+            if (current == current_task) {
+                if (prev)
+                    prev->next = current->next;
+                else
+                    schedule_queue.head = current->next;
+                
+                break;
+            }
+
+            prev = current;
+        }
+
+        cpu::sti();
+        while (true) asm("hlt");
     }
 
     void scheduler_isr(u64 vec, cpu::GPRState *gpr_state) {
@@ -133,9 +160,9 @@ namespace sched {
         }
         
         // switch to the next task
-        if (current_task && current_task->next) 
+        if (current_task && current_task->next)
             current_task = current_task->next;
-        else 
+        else
             current_task = schedule_queue.head;
 
         cpu::write_gs_base((u64)current_task->task);
@@ -148,6 +175,6 @@ namespace sched {
         klib::memcpy(gpr_state, current_task->task->gpr_state, sizeof(cpu::GPRState));
 
         cpu::interrupts::eoi();
-        timer::apic_timer::oneshot(10000);
+        timer::apic_timer::oneshot(1000);
     }
 }

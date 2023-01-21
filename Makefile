@@ -22,8 +22,8 @@ INTERNALCFLAGS :=           \
 	-fstack-protector       \
 	-fno-pie                \
 	-fno-pic                \
-    -march=x86-64           \
-    -mabi=sysv              \
+	-march=x86-64           \
+	-mabi=sysv              \
 	-mno-80387              \
 	-mno-mmx                \
 	-mno-sse                \

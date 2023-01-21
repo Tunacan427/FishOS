@@ -88,7 +88,7 @@ namespace acpi {
         u64 sdt_array[];
     };
     
-    struct [[gnu::packed]] HPET : SDT { 
+    struct [[gnu::packed]] HPET : SDT {
         u8 hardware_rev_id;
         u8 info;
         u16 pci_vendor_id;

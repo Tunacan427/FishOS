@@ -52,10 +52,10 @@ static volatile limine_kernel_address_request kernel_addr_req = {
     .revision = 0
 };
 
-static volatile limine_terminal_request terminal_req = {
-    .id = LIMINE_TERMINAL_REQUEST,
-    .revision = 0
-};
+// static volatile limine_terminal_request terminal_req = {
+//     .id = LIMINE_TERMINAL_REQUEST,
+//     .revision = 0
+// };
 
 [[noreturn]] void panic(const char *format, ...) {
     klib::panic_printf("\nKernel Panic: ");
@@ -67,10 +67,10 @@ static volatile limine_terminal_request terminal_req = {
     abort();
 }
 
-void ap_start(limine_smp_info *ap_info);
+[[noreturn]] void kernel_thread();
 
 extern "C" [[noreturn]] void _start() {
-    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !memmap_req.response || !terminal_req.response
+    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !memmap_req.response
         || !kernel_addr_req.response || !hhdm_req.response || !rsdp_req.response || !smp_req.response) 
     {
         panic("Did not receive requested Limine features");
@@ -78,32 +78,26 @@ extern "C" [[noreturn]] void _start() {
 
     uptr hhdm = hhdm_req.response->offset;
 
-    auto &fb = gfx::main_fb();
+    auto &fb = gfx::screen_fb();
     auto fb_res = fb_req.response->framebuffers[0];
     fb = {
-        .m_addr = (u8*)fb_res->address,
-        .m_width = (u32)fb_res->width,
-        .m_height = (u32)fb_res->height,
-        .m_depth = fb_res->bpp,
-        .m_pitch = (u32)fb_res->pitch,
-        .m_pixel_width = (u32)fb_res->bpp / 8
+        .addr = (u8*)fb_res->address,
+        .width = (u32)fb_res->width,
+        .height = (u32)fb_res->height,
+        .pitch = (u32)fb_res->pitch,
+        .pixel_width = (u32)fb_res->bpp / 8
     };
-/*
-    fb.fill_rect(0, 0, fb.width, fb.height, 0xf49b02);
-    fb.fill_rect(fb.width / 2 - 50, fb.height / 2 - 25, 100, 50, 0xDB880D);
-    terminal::set_width(fb.width / 8 - 2);
-    terminal::set_height(fb.height / 16 - 1);
-*/
-    terminal::init(terminal_req.response);
-    klib::printf("Framebuffer: Initialized\n");
-    
-    cpu::init();
 
     mem::pmm::init(hhdm, memmap_req.response);
     klib::printf("PMM: Initialized\n");
+    
+    cpu::early_init();
 
     mem::vmm::init(hhdm, memmap_req.response, kernel_addr_req.response);
     klib::printf("VMM: Initialized\n");
+
+    terminal::init();
+    klib::printf("Terminal: Initialized\n");
 
     auto alloc = mem::BuddyAlloc::get();
     const u64 heap_size = 1024 * 1024 * 1024;
@@ -113,28 +107,16 @@ extern "C" [[noreturn]] void _start() {
     klib::printf("ACPI: Parsing ACPI tables and enabling APIC\n");
     acpi::parse_rsdp((uptr)rsdp_req.response->address);
 
-    auto smp_res = smp_req.response;
-    klib::printf("CPU: SMP | x2APIC: %s\n", (smp_res->flags & 1) ? "yes" : "no");
-    for (u32 i = 0; i < smp_res->cpu_count; i++) {
-        auto cpu = smp_res->cpus[i];
-        auto is_bsp = cpu->lapic_id == smp_res->bsp_lapic_id;
-        klib::printf("\tCore %d%s | Processor ID: %d, LAPIC ID: %d\n", i, is_bsp ? " (BSP)" : "", cpu->processor_id, cpu->lapic_id);
-        if (!is_bsp) {
-            __atomic_store_n(&cpu->goto_address, &ap_start, __ATOMIC_SEQ_CST);
-        }
-    }
-    
-    ps2::kbd::init();
-    klib::printf("PS/2 Keyboard: Initialized\n");
-/*
-    sched::timer::pit::init();
-    klib::printf("PIT: Initialized\n");
-*/
+    // cpu::smp_init(smp_req.response);
+
     sched::timer::apic_timer::init();
     klib::printf("APIC Timer: Initialized\n");
-    
+
     sched::init();
     klib::printf("Scheduler: Initialized\n");
+    
+    sched::new_kernel_task(uptr(kernel_thread), true);
+    sched::start();
 
     asm("sti");
     while (true) asm("hlt");
@@ -142,8 +124,9 @@ extern "C" [[noreturn]] void _start() {
     panic("Reached end of _start");
 }
 
-void ap_start(limine_smp_info *ap_info) {
-    // klib::printf("hello from AP %d\n", ap_info->processor_id);
-    asm("cli");
-    while (true) asm("hlt");
+[[noreturn]] void kernel_thread() {
+    ps2::kbd::init();
+    klib::printf("PS/2 Keyboard: Initialized\n");
+
+    sched::dequeue_and_die();
 }
