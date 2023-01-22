@@ -1,6 +1,7 @@
 #include <klib/cstdio.hpp>
 #include <klib/lock.hpp>
-#include <terminal.hpp>
+#include <gfx/terminal.hpp>
+#include <cpu/cpu.hpp>
 
 static inline usize num_digits(u64 x, u64 base = 10) {
     usize i = 0;
@@ -12,7 +13,11 @@ namespace klib {
     static klib::Spinlock print_lock;
 
     int putchar(char c) {
-        terminal::write_char(c);
+        cpu::out<u8>(0x3F8, c); // output to qemu serial console
+
+        if (gfx::is_kernel_terminal_ready())
+            gfx::kernel_terminal().write_char(c);
+        
         return c;
     }
 

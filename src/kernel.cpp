@@ -9,6 +9,7 @@
 #include <cpu/interrupts/pic.hpp>
 #include <ps2/kbd/keyboard.hpp>
 #include <gfx/framebuffer.hpp>
+#include <gfx/terminal.hpp>
 #include <mem/pmm.hpp>
 #include <mem/vmm.hpp>
 #include <mem/allocator.hpp>
@@ -19,7 +20,6 @@
 #include <sched/timer/pit.hpp>
 #include <sched/timer/apic_timer.hpp>
 #include <sched/sched.hpp>
-#include <terminal.hpp>
 
 static volatile limine_hhdm_request hhdm_req = {
     .id = LIMINE_HHDM_REQUEST,
@@ -51,11 +51,6 @@ static volatile limine_kernel_address_request kernel_addr_req = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
 };
-
-// static volatile limine_terminal_request terminal_req = {
-//     .id = LIMINE_TERMINAL_REQUEST,
-//     .revision = 0
-// };
 
 [[noreturn]] void panic(const char *format, ...) {
     klib::panic_printf("\nKernel Panic: ");
@@ -96,7 +91,8 @@ extern "C" [[noreturn]] void _start() {
     mem::vmm::init(hhdm, memmap_req.response, kernel_addr_req.response);
     klib::printf("VMM: Initialized\n");
 
-    terminal::init();
+    gfx::kernel_terminal();
+    gfx::set_kernel_terminal_ready();
     klib::printf("Terminal: Initialized\n");
 
     auto alloc = mem::BuddyAlloc::get();
@@ -114,7 +110,7 @@ extern "C" [[noreturn]] void _start() {
 
     sched::init();
     klib::printf("Scheduler: Initialized\n");
-    
+
     sched::new_kernel_task(uptr(kernel_thread), true);
     sched::start();
 

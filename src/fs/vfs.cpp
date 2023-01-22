@@ -20,8 +20,8 @@ namespace vfs {
     }
 
     static Node* reduce_node(Node *node, bool follow_symlinks) {
-        if (node->m_redirect)
-            return reduce_node(node->m_redirect, follow_symlinks);
+        if (node->redirect)
+            return reduce_node(node->redirect, follow_symlinks);
         return node;
     }
     
@@ -39,17 +39,20 @@ namespace vfs {
         return nullptr;
     }
 
-    Node::Node(Type type, FileSystem *fs, Node *parent, const char *name) : m_type(type), m_filesystem(fs), m_parent(parent), m_name(name) {}
+    Node::Node(Type type, FileSystem *fs, Node *parent, const char *name) : type(type), filesystem(fs), parent(parent), name(name) {}
+    Node::~Node() {}
 
     FileNode::FileNode(FileSystem *fs, Node *parent, const char *name) : Node(Type::FILE, fs, parent, name) {}
+    FileNode::~FileNode() {}
     
     DirectoryNode::DirectoryNode(FileSystem *fs, Node *parent, const char *name) : Node(Type::DIRECTORY, fs, parent, name) {}
+    DirectoryNode::~DirectoryNode() {}
 
     void DirectoryNode::create_dotentries() {
-        auto dot = new Node(Type::NONE, m_filesystem, this, ".");
-        auto dotdot = new Node(Type::NONE, m_filesystem, this, "..");
-        dot->m_redirect = this;
-        dotdot->m_redirect = m_parent;
+        auto dot = new Node(Type::NONE, filesystem, this, ".");
+        auto dotdot = new Node(Type::NONE, filesystem, this, "..");
+        dot->redirect = this;
+        dotdot->redirect = parent;
         m_children.insert(".", dot);
         m_children.insert("..", dotdot);
     }

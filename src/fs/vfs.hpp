@@ -12,35 +12,41 @@ namespace vfs {
 	    virtual FileSystem* instantiate();
     };
 
-    struct Node {
+    class Node {
+    public:
         enum class Type {
             NONE,
             FILE,
             DIRECTORY
         };
 
-        Type m_type;
-        FileSystem *m_filesystem;
-        Node *m_redirect;
-        Node *m_parent;
-        const char *m_name;
+        Type type;
+        FileSystem *filesystem;
+        Node *redirect;
+        Node *parent;
+        const char *name;
 
         Node(Type type, FileSystem *fs, Node *parent, const char *name);
+        virtual ~Node();
     };
 
-    struct FileNode : Node {
+    class FileNode : public Node {
+    public:
         FileNode(FileSystem *fs, Node *parent, const char *name);
+        virtual ~FileNode();
     };
 
-    struct DirectoryNode : Node {
+    class DirectoryNode : public Node {
         klib::HashMap<const char*, Node*> m_children;
 
-        DirectoryNode(FileSystem *fs, Node *parent, const char *name);
-
         void create_dotentries();
+
+    public:
+        DirectoryNode(FileSystem *fs, Node *parent, const char *name);
+        virtual ~DirectoryNode();
     };
 
-    struct DeviceNode : Node {
+    class DeviceNode : public Node {
         
     };
 

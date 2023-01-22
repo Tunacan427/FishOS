@@ -43,14 +43,47 @@ namespace ps2::kbd {
         0
     };
 
+    static bool left_shift = false, right_shift = false;
+    static bool caps_lock = false;
+
+    static inline bool is_caps() {
+        return caps_lock ^ (left_shift || right_shift);
+    }
+
     static void irq(u64 vec, cpu::GPRState *frame) {
         u8 scancode = cpu::in<u8>(0x60);
 
-        if (scancode & 128) // release scancode, ignored
-            goto end;
-        
-        klib::putchar(map[scancode]);
-    end:
+        if (scancode & 128) { // release scancode
+            switch (scancode & 127) {
+            case 42:
+                left_shift = false;
+                break;
+            case 54:
+                right_shift = false;
+                break;
+            case 58:
+                caps_lock = !caps_lock;
+                break;
+            }
+        } else {
+            switch (scancode) {
+            case 42:
+                left_shift = true;
+                break;
+            case 54:
+                right_shift = true;
+                break;
+            default:
+                char c = map[scancode];
+                if (c) {
+                    if (is_caps() && c >= 'a' && c <= 'z')
+                        c = c - 'a' + 'A';
+                    
+                    klib::putchar(c);
+                }
+            }
+        }
+
         cpu::interrupts::eoi();
     }
 
