@@ -50,7 +50,7 @@ namespace ps2::kbd {
         return caps_lock ^ (left_shift || right_shift);
     }
 
-    static void irq(u64 vec, cpu::GPRState *frame) {
+    static void irq(u64 vec, cpu::InterruptState *state) {
         u8 scancode = cpu::in<u8>(0x60);
 
         if (scancode & 128) { // release scancode

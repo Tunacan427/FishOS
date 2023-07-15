@@ -31,7 +31,7 @@ namespace gfx {
         usize cursor_x, cursor_y;
         usize old_cursor_x, old_cursor_y;
 
-        bool cursor_needs_undrawing = true;
+        bool cursor_needs_undrawing;
 
         // c_x and c_y are the position in chars
         void set_char_at(usize c_x, usize c_y, char c);

@@ -7,7 +7,7 @@
 namespace cpu::interrupts {
     static uptr reg_base;
 
-    static void spurious(u64 vec, GPRState *frame) {
+    static void spurious(u64 vec, InterruptState *state) {
         klib::printf("\n[WARN] APIC spurious interrupt fired\n");
         LAPIC::eoi();
     }

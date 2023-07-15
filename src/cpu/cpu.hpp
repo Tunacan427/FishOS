@@ -11,9 +11,9 @@ namespace cpu {
 
     struct [[gnu::packed]] TSS {
         u32 reserved0;
-        u64 rsp[3];
+        u64 rsp0, rsp1, rsp2;
         u64 reserved1;
-        u64 ist[7];
+        u64 ist1, ist2, ist3, ist4, ist5, ist6, ist7;
         u64 reserved2;
         u16 reserved3;
         u16 io_map_base;
@@ -21,12 +21,13 @@ namespace cpu {
 
     struct [[gnu::packed]] Local {
         u64 cpu_number;
+        bool is_bsp;
         TSS tss;
         u64 lapic_id;
         u64 lapic_timer_freq;
     };
     
-    struct [[gnu::packed]] GPRState {
+    struct [[gnu::packed]] InterruptState {
         u64 ds, es;
         u64 r15, r14, r13, r12, r11, r10, r9, r8;
         u64 rbp, rdi, rsi, rdx, rcx, rbx, rax;

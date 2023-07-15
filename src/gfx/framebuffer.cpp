@@ -1,4 +1,3 @@
-#include "klib/cstdio.hpp"
 #include <gfx/framebuffer.hpp>
 
 #define PSF_FONT_MAGIC 0x864ab572

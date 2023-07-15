@@ -1,6 +1,6 @@
 #pragma once
 
-#include <klib/types.hpp>
+#include <cpu/cpu.hpp>
 
 namespace cpu {
     struct [[gnu::packed]] GDTR {
@@ -28,5 +28,5 @@ namespace cpu {
     extern "C" void __flush_gdt(GDTR *gdtr);
     void load_gdt();
     void reload_gdt();
-    void load_tss();
+    void load_tss(TSS *tss);
 }

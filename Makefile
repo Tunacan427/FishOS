@@ -37,7 +37,7 @@ INTERNALCPPFLAGS :=     \
 	-std=gnu++20        \
 	-fno-exceptions     \
 	-fno-rtti           \
-	-fno-use-cxa-atexit \
+	-fno-use-cxa-atexit
 
 CFILES := $(shell find ./src -type f -name '*.c')
 OBJ := $(CFILES:./src/%.c=obj/%.o)
@@ -75,6 +75,7 @@ $(ISO): $(KERNEL)
 	@echo "[ISO] $< | $@"
 	@mkdir -p isoroot
 	@cp $(KERNEL) limine.cfg limine/limine.sys limine/limine-cd.bin limine/limine-cd-efi.bin isoroot/
+	@cp userspace/test/build/test isoroot/
 	@xorriso -as mkisofs -b limine-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
 		--efi-boot limine-cd-efi.bin \

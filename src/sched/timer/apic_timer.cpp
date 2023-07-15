@@ -15,8 +15,8 @@ namespace sched::timer::apic_timer {
     usize freq = 0;
     u8 vector = 0;
 
-    static void interrupt(u64 vec, cpu::GPRState *frame) {
-        sched::scheduler_isr(vec, frame);
+    static void interrupt(u64 vec, cpu::InterruptState *state) {
+        sched::scheduler_isr(vec, state);
     }
 
     void stop() {

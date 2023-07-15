@@ -23,7 +23,7 @@ namespace cpu::interrupts {
         u32 reserved;
     };
 
-    typedef void (*IDTHandler)(u64 vec, GPRState* frame);
+    typedef void (*IDTHandler)(u64 vec, InterruptState* frame);
 
     u8 allocate_vector();
     void load_idt_entry(u8 index, void (*wrapper)(), IDTType type);

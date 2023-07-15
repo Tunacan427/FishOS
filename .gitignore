@@ -6,3 +6,4 @@ isoroot/
 obj/
 .vscode/
 ovmf/
+build/

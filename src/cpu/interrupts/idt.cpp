@@ -73,29 +73,29 @@ namespace cpu::interrupts {
         "Security"
     };
 
-    static void exception_handler(u64 vec, GPRState *frame) {
+    static void exception_handler(u64 vec, InterruptState *state) {
         const char *err_name = vec < 19 ? exception_strings[vec] : "Reserved";
         klib::printf("\nCPU Exception: %s (%#lX)\n", err_name, vec);
-        if (frame->err) klib::printf("Error code: %#04lX\n", frame->err);
+        if (state->err) klib::printf("Error code: %#04lX\n", state->err);
         if (vec == 0xE) klib::printf("CR2=%016lX\n",  cpu::read_cr2());
-        klib::printf("RAX=%016lX RBX=%016lX RCX=%016lX RDX=%016lX\n", frame->rax, frame->rbx, frame->rcx, frame->rdx);
-        klib::printf("RSI=%016lX RDI=%016lX RBP=%016lX RSP=%016lX\n", frame->rsi, frame->rdi, frame->rbp, frame->rsp);
-        klib::printf(" R8=%016lX  R9=%016lX R10=%016lX R11=%016lX\n", frame->r8, frame->r9, frame->r10, frame->r11);
-        klib::printf("R12=%016lX R13=%016lX R14=%016lX R15=%016lX\n", frame->r12, frame->r13, frame->r14, frame->r15);
-        klib::printf("RIP=%016lX RFLAGS=%016lX\n", frame->rip, frame->rflags);
+        klib::printf("RAX=%016lX RBX=%016lX RCX=%016lX RDX=%016lX\n", state->rax, state->rbx, state->rcx, state->rdx);
+        klib::printf("RSI=%016lX RDI=%016lX RBP=%016lX RSP=%016lX\n", state->rsi, state->rdi, state->rbp, state->rsp);
+        klib::printf(" R8=%016lX  R9=%016lX R10=%016lX R11=%016lX\n", state->r8,  state->r9,  state->r10, state->r11);
+        klib::printf("R12=%016lX R13=%016lX R14=%016lX R15=%016lX\n", state->r12, state->r13, state->r14, state->r15);
+        klib::printf("RIP=%016lX RFLAGS=%016lX\n", state->rip, state->rflags);
         panic("Cannot recover from CPU exception that happened in the kernel");
     }
 
-    static void page_fault_handler(u64 vec, GPRState *frame) {
+    static void page_fault_handler(u64 vec, InterruptState *state) {
         u64 cr2 = cpu::read_cr2();
         if (mem::vmm::try_demand_page(cr2))
-            exception_handler(vec, frame);
+            exception_handler(vec, state);
         // else
         //     klib::printf("Demand paged %#lX\n", cr2);
     }
 
-    extern "C" void __idt_handler_common(u64 vec, GPRState *frame) {
-        idt_handlers[vec](vec, frame);
+    extern "C" void __idt_handler_common(u64 vec, InterruptState *state) {
+        idt_handlers[vec](vec, state);
     }
 
     void load_idt() {

@@ -1,31 +1,37 @@
 #pragma once
 
 #include <cpu/cpu.hpp>
-#include <klib/types.hpp>
 #include <mem/vmm.hpp>
+#include <klib/types.hpp>
 
 namespace sched {
     struct Task {
-        // fixed members, do not move !!!!!
+        // fixed fields   do not move !!!!!
         usize running_on;
-        uptr stack;
+        Task *self;
+        uptr kernel_stack; // used as the stack during syscalls
+        uptr user_stack; // used to preserve the user stack during syscalls
+        // the rest are movable
 
-        // movable members
         u16 tid;
-        mem::vmm::Pagemap *pagemap;
-        cpu::GPRState *gpr_state;
+        mem::vmm::Pagemap pagemap;
+        cpu::InterruptState *gpr_state;
         u64 gs_base, fs_base;
+        uptr stack; // the actual stack
         bool blocked;
 
-        Task(u16 tid) : tid(tid), pagemap(new mem::vmm::Pagemap()), gpr_state(new cpu::GPRState()), blocked(false) {}
+        Task(u16 tid) : tid(tid), pagemap(), gpr_state(new cpu::InterruptState()), blocked(false) {}
     };
 
     void init();
     void start();
     Task* new_kernel_task(uptr ip, bool enqueue);
+    Task* new_user_task(void *elf_file, bool enqueue);
     [[noreturn]] void dequeue_and_die();
     
-    void scheduler_isr(u64 vec, cpu::GPRState *gpr_state);
+    [[noreturn]] void syscall_exit(int status);
+    
+    void scheduler_isr(u64 vec, cpu::InterruptState *gpr_state);
 
     struct ScheduleQueue {
         struct QueuedTask {

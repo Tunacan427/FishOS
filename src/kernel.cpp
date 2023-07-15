@@ -4,9 +4,12 @@
 #include <klib/bitmap.hpp>
 #include <klib/cstdlib.hpp>
 #include <limine.hpp>
+#include <cpu/cpu.hpp>
 #include <cpu/gdt/gdt.hpp>
 #include <cpu/interrupts/idt.hpp>
 #include <cpu/interrupts/pic.hpp>
+#include <cpu/interrupts/interrupts.hpp>
+#include <cpu/syscall/syscall.hpp>
 #include <ps2/kbd/keyboard.hpp>
 #include <gfx/framebuffer.hpp>
 #include <gfx/terminal.hpp>
@@ -15,11 +18,10 @@
 #include <mem/allocator.hpp>
 #include <panic.hpp>
 #include <acpi/tables.hpp>
-#include <cpu/cpu.hpp>
-#include <cpu/interrupts/interrupts.hpp>
 #include <sched/timer/pit.hpp>
 #include <sched/timer/apic_timer.hpp>
 #include <sched/sched.hpp>
+#include <elf/elf.hpp>
 
 static volatile limine_hhdm_request hhdm_req = {
     .id = LIMINE_HHDM_REQUEST,
@@ -52,6 +54,11 @@ static volatile limine_kernel_address_request kernel_addr_req = {
     .revision = 0
 };
 
+static volatile limine_module_request module_req = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0
+};
+
 [[noreturn]] void panic(const char *format, ...) {
     klib::panic_printf("\nKernel Panic: ");
     va_list list;
@@ -65,7 +72,7 @@ static volatile limine_kernel_address_request kernel_addr_req = {
 [[noreturn]] void kernel_thread();
 
 extern "C" [[noreturn]] void _start() {
-    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !memmap_req.response
+    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !memmap_req.response || !module_req.response
         || !kernel_addr_req.response || !hhdm_req.response || !rsdp_req.response || !smp_req.response) 
     {
         panic("Did not receive requested Limine features");
@@ -100,10 +107,18 @@ extern "C" [[noreturn]] void _start() {
     alloc->init(~(u64)0 - heap_size - 0x1000 + 1, heap_size);
     klib::printf("Allocator: Initialized, base: %#lX\n", (uptr)alloc->head);
 
+    // auto p = new mem::vmm::Pagemap();
+    // p->pml4 = (u64*)(mem::pmm::alloc_pages(1) + mem::vmm::get_hhdm());
+    // klib::memset(p->pml4, 0, 0x1000);
+    // p->map_page(mem::pmm::alloc_pages(1), 0x10000, PAGE_PRESENT | PAGE_USER);
+    // p->activate();
+
+    cpu::smp_init(smp_req.response);
+
     klib::printf("ACPI: Parsing ACPI tables and enabling APIC\n");
     acpi::parse_rsdp((uptr)rsdp_req.response->address);
 
-    // cpu::smp_init(smp_req.response);
+    cpu::syscall::init_syscall_table();
 
     sched::timer::apic_timer::init();
     klib::printf("APIC Timer: Initialized\n");
@@ -123,6 +138,13 @@ extern "C" [[noreturn]] void _start() {
 [[noreturn]] void kernel_thread() {
     ps2::kbd::init();
     klib::printf("PS/2 Keyboard: Initialized\n");
+
+    auto module_res = module_req.response;
+    for (usize i = 0; i < module_res->module_count; i++) {
+        auto file = module_res->modules[i];
+        klib::printf("Loading file %s (size: %ld KiB)\n", file->path, file->size / 1024);
+        sched::new_user_task(file->address, true);
+    }
 
     sched::dequeue_and_die();
 }

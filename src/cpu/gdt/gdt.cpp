@@ -57,7 +57,9 @@ namespace cpu {
         __flush_gdt(&gdtr);
     }
 
-    void load_tss(uptr tss_addr) {
+    void load_tss(TSS *tss) {
+        uptr tss_addr = uptr(tss);
+        
         gdt[5] = {
             .limit = 0x67,
             .base_low = u16(tss_addr),

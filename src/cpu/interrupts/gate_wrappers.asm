@@ -1,6 +1,12 @@
 section .text
+
 extern __idt_handler_common
 __idt_wrapper_common:
+    cmp QWORD [rsp + 16], 0x23 ; check if code segment is user
+    jne .continue1
+    swapgs
+
+.continue1:
     xchg rax, [rsp] ; swap rax with the vector number which was pushed in the wrapper 
     push rbx
     push rcx
@@ -24,8 +30,17 @@ __idt_wrapper_common:
     push rax
     mov eax, ds
     push rax
-
+    
     sub rsi, 16
+
+    cld
+
+    mov eax, 0x10 ; kernel data segment
+    mov ds, eax
+    mov es, eax
+    mov ss, eax
+
+    xor rbp, rbp
 
     call __idt_handler_common
 
@@ -51,6 +66,12 @@ __idt_wrapper_common:
     pop rax
 
     add rsp, 8
+
+    cmp QWORD [rsp + 8], 0x23 ; check if code segment is user
+    jne .continue2
+    swapgs
+
+.continue2:
     iretq
 
 %define has_errcode(v) (v == 8 || (v >= 10 && v <= 14) || v == 17 || v == 21)
