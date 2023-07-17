@@ -5,8 +5,8 @@ global __syscall_entry
 __syscall_entry:
     swapgs
 
-    mov gs:[24], rsp ; save user stack
-    mov rsp, gs:[16] ; switch to kernel stack
+    mov gs:[16], rsp ; save user stack
+    mov rsp, gs:[8] ; switch to kernel stack
 
     push rax
     push rbx
@@ -38,7 +38,7 @@ __syscall_entry:
 
     mov rcx, r10 ; to retrieve function arguments properly
     mov rax, [rsp + 16 * 8] ; retrieve the original value of rax
-    cmp rax, 2 ; size of the syscall table
+    cmp rax, 5 ; size of the syscall table
     jae .out_of_bounds ; check if rax is a correct syscall table index
     call [__syscall_table + rax * 8]
     mov [rsp + 16 * 8], rax ; set the new value of rax
@@ -66,7 +66,7 @@ __syscall_entry:
     pop rbx
     pop rax
 
-    mov rsp, gs:[24] ; restore user stack
+    mov rsp, gs:[16] ; restore user stack
 
     swapgs
     o64 sysret

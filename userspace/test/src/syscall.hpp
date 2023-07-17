@@ -2,6 +2,12 @@
 
 #include "types.hpp"
 
+#define SYS_EXIT   0
+#define SYS_READ   1
+#define SYS_PREAD  2
+#define SYS_WRITE  3
+#define SYS_PWRITE 4
+
 #define SYSCALL_INLINE [[gnu::always_inline]] inline
 
 SYSCALL_INLINE u64 syscall(u64 sc) {

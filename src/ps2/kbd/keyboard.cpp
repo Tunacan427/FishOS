@@ -43,6 +43,11 @@ namespace ps2::kbd {
         0
     };
 
+    // ring buffer
+    static char buffer[buffer_size];
+    static usize buffer_write_index = 0;
+    static usize buffer_read_index = 0;
+
     static bool left_shift = false, right_shift = false;
     static bool caps_lock = false;
 
@@ -79,7 +84,11 @@ namespace ps2::kbd {
                     if (is_caps() && c >= 'a' && c <= 'z')
                         c = c - 'a' + 'A';
                     
-                    klib::putchar(c);
+                    if ((buffer_write_index + 1) % buffer_size != buffer_read_index) {
+                        buffer[buffer_write_index] = c;
+                        buffer_write_index = (buffer_write_index + 1) % buffer_size;
+                        klib::putchar(c);
+                    }
                 }
             }
         }
@@ -89,6 +98,21 @@ namespace ps2::kbd {
 
     void init() {
         cpu::interrupts::register_irq(1, irq);
-        cpu::in<u8>(0x60); // drain buffer
+        cpu::in<u8>(0x60); // drain ps2 buffer
+        klib::memset(buffer, 0, buffer_size);
+    }
+
+    usize read(void *buf, usize count) {
+        asm volatile("sti");
+        for (usize i = 0; i < count;) {
+            while (buffer_read_index == buffer_write_index)
+                asm volatile("pause");
+            char c = buffer[buffer_read_index];
+            ((u8*)buf)[i++] = c;
+            buffer_read_index = (buffer_read_index + 1) % buffer_size;
+            if (c == '\n')
+                return i;
+        }
+        return count;
     }
 }

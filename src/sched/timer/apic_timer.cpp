@@ -45,7 +45,7 @@ namespace sched::timer::apic_timer {
         if (hpet::is_initialized()) {
             klib::printf("APIC Timer: Using HPET for calibration\n");
             LAPIC::write_reg(LAPIC::TIMER_INITIAL, 0xFFFFFFFF);
-            hpet::sleep_ms(100);
+            hpet::stall_ms(100);
         } else {
             klib::printf("APIC Timer: Using PIT for calibration\n");
             pit::prepare_sleep(100);

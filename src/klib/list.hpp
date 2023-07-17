@@ -2,27 +2,46 @@
 
 #include <klib/types.hpp>
 
+// ptr: pointer to a ListHead, type: type of struct that the ListHead is in, member: the name of the ListHead in the struct
+#define LIST_ENTRY(ptr, type, member) (type*)((uptr)ptr - offsetof(type, member))
+
 namespace klib {
-    template<typename T>
-    class LinkedList {
-        struct Entry {
-            Entry *next;
-            T data;
-        };
+    struct ListHead {
+        ListHead *next, *prev;
 
-    public:
-        Entry *head, *tail;
+        // init a list
+        inline void init() {
+            next = this;
+            prev = this;
+        }
 
-        void insert(T data) {
-            if (!head) {
-                head = new Entry { nullptr, data };
-                tail = head;
-                return;
-            }
+        // add entry after this
+        inline void add(ListHead *entry) {
+            next->prev = entry;
+            entry->next = next;
+            entry->prev = this;
+            this->next = entry;
+        }
 
-            auto e = new Entry { nullptr, data };
-            tail->next = e;
-            tail = e;
+        // add entry before this
+        inline void add_before(ListHead *entry) {
+            prev->next = entry;
+            entry->prev = prev;
+            entry->next = this;
+            this->prev = entry;
+        }
+
+        // remove this entry from the list
+        inline void remove() {
+            next->prev = prev;
+            prev->next = next;
+            this->next = nullptr;
+            this->prev = nullptr;
+        }
+
+        // is this list empty
+        inline bool empty() {
+            return next == this;
         }
     };
 }

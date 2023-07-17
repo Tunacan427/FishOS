@@ -1,11 +1,11 @@
-#include <elf/elf.hpp>
+#include <userland/elf.hpp>
 #include <klib/cstring.hpp>
 #include <klib/cstdio.hpp>
 #include <mem/vmm.hpp>
 #include <mem/pmm.hpp>
 #include <panic.hpp>
 
-namespace elf {
+namespace userland::elf {
     uptr load(mem::vmm::Pagemap *pagemap, uptr file_addr) {
         auto header = (Header*)file_addr;
 

@@ -5,7 +5,7 @@ CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CFLAGS = -O3 -g3 -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined
+CFLAGS = -O2 -g3 -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined
 CPPFLAGS = $(CFLAGS)
 NASMFLAGS = -felf64 -g
 LDFLAGS =
@@ -74,11 +74,11 @@ installuefi: $(ISO)
 $(ISO): $(KERNEL)
 	@echo "[ISO] $< | $@"
 	@mkdir -p isoroot
-	@cp $(KERNEL) limine.cfg limine/limine.sys limine/limine-cd.bin limine/limine-cd-efi.bin isoroot/
+	@cp $(KERNEL) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin isoroot/
 	@cp userspace/test/build/test isoroot/
-	@xorriso -as mkisofs -b limine-cd.bin \
+	@xorriso -as mkisofs -b limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
-		--efi-boot limine-cd-efi.bin \
+		--efi-boot limine-uefi-cd.bin \
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
 		isoroot -o $(ISO)
 
@@ -109,5 +109,8 @@ obj/font.o:
 	@objcopy -O elf64-x86-64 -B i386 -I binary font.psfu obj/font.o
 
 # Remove object files and the final executable.
-clean:
-	rm -rf $(KERNEL) obj/ $(ISO) isoroot/
+clean: cleaniso
+	rm -rf $(KERNEL) obj/
+
+cleaniso:
+	rm -rf $(ISO) isoroot/

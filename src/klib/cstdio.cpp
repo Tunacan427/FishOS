@@ -14,9 +14,21 @@ namespace klib {
 
     int putchar(char c) {
         cpu::out<u8>(0x3F8, c); // output to qemu serial console
-
+        
         if (gfx::is_kernel_terminal_ready())
             gfx::kernel_terminal().write_char(c);
+        else { // very simple early terminal for printing boot errors
+            auto &fb = gfx::screen_fb();
+            if (fb.addr) {
+                static usize x = 0;
+                static usize y = 0;
+                if (x > fb.width / 8) { x = 0; y++; }
+                if (y > fb.height / 16) { y = 0; }
+                if (c == '\n') { x = 0; y++; return c; }
+                fb.draw_psf_char(c, x, y, 4, 4, ~0, 0);
+                x++;
+            }
+        }
         
         return c;
     }

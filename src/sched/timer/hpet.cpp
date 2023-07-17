@@ -15,9 +15,9 @@ namespace sched::timer::hpet {
     static u64 period, freq;
     static acpi::GenericAddr regs;
 
-    void sleep_ms(usize ms) { sleep_ns(ms * 1'000'000); }
-    void sleep_us(usize us) { sleep_ns(us * 1'000); }
-    void sleep_ns(usize ns) {
+    void stall_ms(usize ms) { stall_ns(ms * 1'000'000); }
+    void stall_us(usize us) { stall_ns(us * 1'000); }
+    void stall_ns(usize ns) {
         ASSERT(initialized);
         
         usize fs = ns * 1'000'000; // convert to femtoseconds

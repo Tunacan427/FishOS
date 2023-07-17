@@ -27,6 +27,7 @@ namespace mem::vmm {
         kernel_virt_base = kernel_addr_res->virtual_base;
 
         kernel_pagemap.pml4 = (u64*)(pmm::alloc_pages(1) + hhdm);
+        klib::memset(kernel_pagemap.pml4, 0, 0x1000);
 
         usize kernel_size = 0;
 
@@ -48,7 +49,7 @@ namespace mem::vmm {
             default: entry_name = "Unknown";
             }
 
-            klib::printf("\t%s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
+            klib::printf("    %s | base: %#lX, size: %ld KiB\n", entry_name, entry->base, entry->length / 1024);
 
             if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || entry->type == LIMINE_MEMMAP_FRAMEBUFFER || entry->type == LIMINE_MEMMAP_USABLE)
                 kernel_pagemap.map_pages(entry->base, entry->base + hhdm, entry->length, flags);
@@ -128,6 +129,12 @@ namespace mem::vmm {
     }
 
     void Pagemap::activate() {
+        klib::LockGuard guard(this->lock);
+        // bool is_pagemap_empty = true;
+        // for (usize i = 0; i < 512; i++)
+        //     if (pml4[i] != 0) { is_pagemap_empty = false; break; }
+        // if (is_pagemap_empty)
+        //     panic("Tried to activate pagemap %#lX (pml4: %#lX) but its completely empty", (uptr)this, (uptr)pml4);
         cpu::write_cr3(uptr(pml4) - hhdm);
     }
 

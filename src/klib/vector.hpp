@@ -42,8 +42,8 @@ namespace klib {
             klib::free(m_buffer);
         }
 
-        T* operator [](usize index) const {
-            return index < m_size ? m_buffer[index] : nullptr;
+        T& operator [](usize index) const {
+            return m_buffer[index];
         }
 
         void push_back(T elem) {

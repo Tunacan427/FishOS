@@ -1,20 +1,27 @@
 #pragma once
 
 #include <klib/types.hpp>
+#include <panic.hpp>
 
 namespace klib {
     struct Spinlock {
+        // int i = 0;
         volatile bool locked = false;
 
         inline void lock() {
-            // asm volatile("cli");
-            while (__atomic_test_and_set(&this->locked, __ATOMIC_ACQUIRE))
+            asm volatile("cli");
+            while (__atomic_test_and_set(&this->locked, __ATOMIC_ACQUIRE)) {
+                // i++;
+                // if (i == 10000000)
+                //     panic("Spinlock spun too much");
                 asm volatile("pause");
+            }
         }
 
         inline void unlock() {
+            // i = 0;
             __atomic_clear(&this->locked, __ATOMIC_RELEASE);
-            // asm volatile("sti");
+            asm volatile("sti");
         }
     };
 
@@ -24,17 +31,17 @@ namespace klib {
         l.unlock();
     };
 
-    template<BasicLockable M>
+    template<BasicLockable L>
     class LockGuard {
-        M &mutex;
+        L &lock;
 
     public:
-        explicit LockGuard(M &m) : mutex(m) {
-            mutex.lock();
+        explicit LockGuard(L &l) : lock(l) {
+            lock.lock();
         }
 
         ~LockGuard() {
-            mutex.unlock();
+            lock.unlock();
         }
 
         LockGuard(const LockGuard&) = delete;

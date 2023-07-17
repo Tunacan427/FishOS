@@ -4,6 +4,7 @@
 #include <mem/vmm.hpp>
 #include <klib/cstdio.hpp>
 #include <klib/bitmap.hpp>
+#include <sched/sched.hpp>
 #include <panic.hpp>
 
 namespace cpu::interrupts {
@@ -75,6 +76,12 @@ namespace cpu::interrupts {
 
     static void exception_handler(u64 vec, InterruptState *state) {
         const char *err_name = vec < 19 ? exception_strings[vec] : "Reserved";
+        if ((state->cs & 3) == 3) {
+            auto *task = (sched::Task*)cpu::read_gs_base();
+            klib::printf("\nUser task (tid: %d) crashed (%s)\n", task->tid, err_name);
+            sched::dequeue_and_die();
+            return;
+        }
         klib::printf("\nCPU Exception: %s (%#lX)\n", err_name, vec);
         if (state->err) klib::printf("Error code: %#04lX\n", state->err);
         if (vec == 0xE) klib::printf("CR2=%016lX\n",  cpu::read_cr2());
@@ -87,6 +94,10 @@ namespace cpu::interrupts {
     }
 
     static void page_fault_handler(u64 vec, InterruptState *state) {
+        if ((state->cs & 3) == 3) {
+            exception_handler(vec, state);
+            return;
+        }
         u64 cr2 = cpu::read_cr2();
         if (mem::vmm::try_demand_page(cr2))
             exception_handler(vec, state);
@@ -112,8 +123,8 @@ namespace cpu::interrupts {
 
         idtr.limit = sizeof(idt) - 1;
         idtr.base = (u64)&idt;
-        cli();
+        asm volatile("cli");
         asm volatile("lidt %0" : : "m" (idtr));
-        sti();
+        asm volatile("sti");
     }
 }

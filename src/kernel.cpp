@@ -19,9 +19,11 @@
 #include <panic.hpp>
 #include <acpi/tables.hpp>
 #include <sched/timer/pit.hpp>
+#include <sched/timer/hpet.hpp>
 #include <sched/timer/apic_timer.hpp>
 #include <sched/sched.hpp>
-#include <elf/elf.hpp>
+#include <userland/elf.hpp>
+#include <fs/vfs.hpp>
 
 static volatile limine_hhdm_request hhdm_req = {
     .id = LIMINE_HHDM_REQUEST,
@@ -59,24 +61,34 @@ static volatile limine_module_request module_req = {
     .revision = 0
 };
 
+struct StackFrame {
+    StackFrame *next;
+    uptr ip;
+};
+
 [[noreturn]] void panic(const char *format, ...) {
     klib::panic_printf("\nKernel Panic: ");
     va_list list;
     va_start(list, format);
     klib::panic_vprintf(format, list);
     va_end(list);
-    klib::putchar('\n');
+    StackFrame *frame = (StackFrame*)__builtin_frame_address(0);
+    klib::panic_printf("\nStacktrace: ");
+    while (true) {
+        if (frame == nullptr || frame->ip == 0)
+            break;
+        
+        klib::panic_printf("%#lX\n            ", frame->ip);
+        frame = frame->next;
+    }
     abort();
 }
 
 [[noreturn]] void kernel_thread();
 
 extern "C" [[noreturn]] void _start() {
-    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !memmap_req.response || !module_req.response
-        || !kernel_addr_req.response || !hhdm_req.response || !rsdp_req.response || !smp_req.response) 
-    {
-        panic("Did not receive requested Limine features");
-    }
+    if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !hhdm_req.response)
+        panic("Did not receive enough limine features to initialise early panic terminal");
 
     uptr hhdm = hhdm_req.response->offset;
 
@@ -90,6 +102,12 @@ extern "C" [[noreturn]] void _start() {
         .pixel_width = (u32)fb_res->bpp / 8
     };
 
+    if (!memmap_req.response) panic("Did not receive Limine memmap feature response");
+    if (!module_req.response) panic("Did not receive Limine module feature response");
+    if (!kernel_addr_req.response) panic("Did not receive Limine kernel address feature response");
+    if (!rsdp_req.response) panic("Did not receive Limine RSDP feature response");
+    if (!smp_req.response) panic("Did not receive Limine SMP feature response");
+
     mem::pmm::init(hhdm, memmap_req.response);
     klib::printf("PMM: Initialized\n");
     
@@ -97,7 +115,7 @@ extern "C" [[noreturn]] void _start() {
 
     mem::vmm::init(hhdm, memmap_req.response, kernel_addr_req.response);
     klib::printf("VMM: Initialized\n");
-
+    
     gfx::kernel_terminal();
     gfx::set_kernel_terminal_ready();
     klib::printf("Terminal: Initialized\n");
@@ -106,19 +124,16 @@ extern "C" [[noreturn]] void _start() {
     const u64 heap_size = 1024 * 1024 * 1024;
     alloc->init(~(u64)0 - heap_size - 0x1000 + 1, heap_size);
     klib::printf("Allocator: Initialized, base: %#lX\n", (uptr)alloc->head);
-
-    // auto p = new mem::vmm::Pagemap();
-    // p->pml4 = (u64*)(mem::pmm::alloc_pages(1) + mem::vmm::get_hhdm());
-    // klib::memset(p->pml4, 0, 0x1000);
-    // p->map_page(mem::pmm::alloc_pages(1), 0x10000, PAGE_PRESENT | PAGE_USER);
-    // p->activate();
-
+    
     cpu::smp_init(smp_req.response);
 
     klib::printf("ACPI: Parsing ACPI tables and enabling APIC\n");
     acpi::parse_rsdp((uptr)rsdp_req.response->address);
 
     cpu::syscall::init_syscall_table();
+    
+    fs::vfs::init();
+    klib::printf("VFS: Initialized\n");
 
     sched::timer::apic_timer::init();
     klib::printf("APIC Timer: Initialized\n");
@@ -140,11 +155,20 @@ extern "C" [[noreturn]] void _start() {
     klib::printf("PS/2 Keyboard: Initialized\n");
 
     auto module_res = module_req.response;
+    sched::Task *init_task = nullptr;
     for (usize i = 0; i < module_res->module_count; i++) {
         auto file = module_res->modules[i];
         klib::printf("Loading file %s (size: %ld KiB)\n", file->path, file->size / 1024);
-        sched::new_user_task(file->address, true);
+        init_task = sched::new_user_task(file->address, true);
     }
 
-    sched::dequeue_and_die();
+    // sched::dequeue_and_die();
+    while (true) {
+        if (init_task->sched_list.next == nullptr) {
+            klib::printf("Init process died, rebooting in 3 seconds\n");
+            sched::timer::hpet::stall_ms(3000);
+            cpu::write_cr3(0);
+        }
+        asm("hlt");
+    }
 }

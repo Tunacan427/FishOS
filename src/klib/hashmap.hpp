@@ -1,10 +1,7 @@
 #pragma once
 
-#include "cstdio.hpp"
 #include "cstdlib.hpp"
-#include "cstring.hpp"
 #include "types.hpp"
-#include "list.hpp"
 #include "hash.hpp" 
 
 #define HASHMAP_DELETED_ENTRY (Entry*)(~(uptr)0)
@@ -65,16 +62,16 @@ namespace klib {
             }
         }
 
-        V* get(K key) {
+        V& get(K key) {
             auto first_index = hash(key) % m_capacity;
             for (usize i = 0; i < m_capacity; i++) {
                 auto attempt = (i + first_index) % m_capacity;
                 if (!m_array[attempt] || m_array[attempt] == HASHMAP_DELETED_ENTRY) continue;
                 if (m_array[attempt]->key == key) {
-                    return &m_array[attempt]->value;
+                    return m_array[attempt]->value;
                 }
             }
-            return nullptr;
+            __builtin_unreachable();
         }
         
         void erase(K key) {
@@ -87,6 +84,13 @@ namespace klib {
                     m_array[attempt] = HASHMAP_DELETED_ENTRY;
                 }
             }
+        }
+        
+        template<typename F>
+        void for_each(F func) {
+            for (usize i = 0; i < m_capacity; i++)
+                if (m_array[i] && m_array[i] != HASHMAP_DELETED_ENTRY)
+                    func(&m_array[i]->key, &m_array[i]->value);
         }
     };
 }

@@ -61,14 +61,6 @@ namespace cpu {
         }
     };
 
-    static inline void cli() {
-        asm volatile("cli");
-    }
-
-    static inline void sti() {
-        asm volatile("sti");
-    }
-
     static inline void cpuid(u32 leaf, u32 subleaf, u32 *eax, u32 *ebx, u32 *ecx, u32 *edx) {
         asm volatile("cpuid" : "=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx) : "a" (leaf), "c" (subleaf));
     }

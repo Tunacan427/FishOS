@@ -21,7 +21,7 @@
 #define PF_W (1 << 1) // Writable
 #define PF_R (1 << 2) // Readable
 
-namespace elf {
+namespace userland::elf {
     struct [[gnu::packed]] Header {
         u8  identifier[16]; // magic number and other info
         u16 type;

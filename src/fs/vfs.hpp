@@ -3,17 +3,9 @@
 #include <klib/types.hpp>
 #include <klib/hashmap.hpp>
 
-namespace vfs {
-    class FileSystem {
-        
-    };
-
-    class FileSystemDriver {
-	    virtual FileSystem* instantiate();
-    };
-
-    class Node {
-    public:
+namespace fs::vfs {
+    struct FileSystem;
+    struct Node {
         enum class Type {
             NONE,
             FILE,
@@ -22,6 +14,7 @@ namespace vfs {
 
         Type type;
         FileSystem *filesystem;
+        void *data; // used by the filesystem
         Node *redirect;
         Node *parent;
         const char *name;
@@ -30,26 +23,35 @@ namespace vfs {
         virtual ~Node();
     };
 
-    class FileNode : public Node {
-    public:
+    struct FileNode : public Node {
         FileNode(FileSystem *fs, Node *parent, const char *name);
         virtual ~FileNode();
     };
 
-    class DirectoryNode : public Node {
-        klib::HashMap<const char*, Node*> m_children;
+    struct DirectoryNode : public Node {
+        klib::HashMap<klib::String, Node*> children;
 
-        void create_dotentries();
-
-    public:
         DirectoryNode(FileSystem *fs, Node *parent, const char *name);
         virtual ~DirectoryNode();
+
+        void create_dotentries();
     };
 
-    class DeviceNode : public Node {
+    struct DeviceNode : public Node {
         
+    };
+
+    struct FileSystem {
+        Node* (*create)(FileSystem *fs, DirectoryNode *parent, const char *name, vfs::Node::Type type);
+        void (*read)(FileSystem *fs, Node *node, void *buf, usize count, usize offset);
+        void (*write)(FileSystem *fs, Node *node, const void *buf, usize count, usize offset);
+    };
+
+    struct FileSystemDriver {
+        FileSystem* (*instantiate)(FileSystemDriver *driver);
     };
 
     void init();
     void register_filesystem(const char *identifier, FileSystemDriver *fs_driver);
+    DirectoryNode* root_dir();
 }
