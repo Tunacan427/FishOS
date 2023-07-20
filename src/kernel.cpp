@@ -24,6 +24,7 @@
 #include <sched/sched.hpp>
 #include <userland/elf.hpp>
 #include <fs/vfs.hpp>
+#include <fs/initramfs.hpp>
 
 static volatile limine_hhdm_request hhdm_req = {
     .id = LIMINE_HHDM_REQUEST,
@@ -88,7 +89,7 @@ struct StackFrame {
 
 extern "C" [[noreturn]] void _start() {
     if (!fb_req.response || fb_req.response->framebuffer_count == 0 || !hhdm_req.response)
-        panic("Did not receive enough limine features to initialise early panic terminal");
+        panic("Did not receive enough limine features to initialise early boot terminal");
 
     uptr hhdm = hhdm_req.response->offset;
 
@@ -155,20 +156,36 @@ extern "C" [[noreturn]] void _start() {
     klib::printf("PS/2 Keyboard: Initialized\n");
 
     auto module_res = module_req.response;
-    sched::Task *init_task = nullptr;
-    for (usize i = 0; i < module_res->module_count; i++) {
-        auto file = module_res->modules[i];
-        klib::printf("Loading file %s (size: %ld KiB)\n", file->path, file->size / 1024);
-        init_task = sched::new_user_task(file->address, true);
+    if (module_res->module_count == 0) panic("No initramfs Limine module loaded");
+    if (module_res->module_count > 1) panic("Too many Limine modules loaded");
+
+    auto initramfs_module = module_res->modules[0];
+    klib::printf("Loading initramfs file %s (size: %ld KiB)\n", initramfs_module->path, initramfs_module->size / 1024);
+    fs::initramfs::load_into(fs::vfs::root_dir(), initramfs_module->address, initramfs_module->size);
+    
+    {
+        auto hello_dir = (fs::vfs::DirectoryNode*)*fs::vfs::root_dir()->children.get("hello");
+        auto result = fs::vfs::path_to_node("..", hello_dir);
+        if (result.target == nullptr)
+            panic("Failed to find target");
+        klib::printf("name: %s\n", result.target->name);
+        delete[] result.basename;
     }
 
-    // sched::dequeue_and_die();
+    auto result = fs::vfs::path_to_node("/bin/test");
+    if (result.target == nullptr)
+        panic("Failed to find /bin/test");
+    delete[] result.basename;
+    
+    klib::printf("Loading executable /bin/test\n");
+    sched::Task *test_task = sched::new_user_task((fs::vfs::FileNode*)result.target, true);
     while (true) {
-        if (init_task->sched_list.next == nullptr) {
-            klib::printf("Init process died, rebooting in 3 seconds\n");
+        if (test_task->sched_list.next == nullptr) {
+            klib::printf("Test task died, rebooting in 3 seconds\n");
             sched::timer::hpet::stall_ms(3000);
             cpu::write_cr3(0);
         }
         asm("hlt");
     }
+    // sched::dequeue_and_die();
 }

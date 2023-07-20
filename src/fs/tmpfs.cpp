@@ -24,12 +24,18 @@ namespace fs::tmpfs {
         }
     }
 
-    void read(vfs::FileSystem *fs, vfs::Node *node, void *buf, usize count, usize offset) {
-        if (node->type != vfs::Node::Type::FILE) return;
+    isize read(vfs::FileSystem *fs, vfs::Node *node, void *buf, usize count, usize offset) {
+        if (node->type != vfs::Node::Type::FILE) return -1;
         NodeData *data = (NodeData*)node->data;
-        if (offset + count > data->size)
-            return;
+        if (offset >= data->size)
+            return 0;
+        if (offset + count > data->size) { // partial read
+            usize actual_count = data->size - offset;
+            klib::memcpy(buf, data->storage + offset, actual_count);
+            return actual_count;
+        }
         klib::memcpy(buf, data->storage + offset, count);
+        return count;
     }
 
     void write(vfs::FileSystem *fs, vfs::Node *node, const void *buf, usize count, usize offset) {

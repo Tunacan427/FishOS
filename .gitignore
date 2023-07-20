@@ -2,8 +2,10 @@
 *.elf
 *.iso
 *.o
-isoroot/
-obj/
-.vscode/
-ovmf/
+/isoroot/
+/obj/
+/.vscode/
+/ovmf/
 build/
+/initramfs/bin/*
+!/initramfs/bin/.gitkeep

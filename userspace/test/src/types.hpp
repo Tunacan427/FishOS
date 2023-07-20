@@ -14,6 +14,7 @@ using i32 = int32_t;
 using i64 = int64_t;
 
 using usize = size_t;
+using isize = i64; // warning!!!!!!!!!!!!!!!!!!!!
 using uptr = uintptr_t;
 
 using nullptr_t = decltype(nullptr);

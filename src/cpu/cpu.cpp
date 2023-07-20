@@ -62,6 +62,9 @@ namespace cpu {
         
         // enable syscall/sysret instructions
         MSR::write(MSR::IA32_EFER, MSR::read(MSR::IA32_EFER) | 1);
+        
+        // make sure interrupt flag gets reset on syscall entry
+        MSR::write(MSR::IA32_FMASK, MSR::read(MSR::IA32_FMASK) | 0x200);
 
         u64 star = 0 | (u64(GDTSegment::KERNEL_CODE_64) << 32) | ((u64(GDTSegment::USER_CODE_64) - 16) << 48);
         MSR::write(MSR::IA32_STAR, star);

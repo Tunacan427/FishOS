@@ -1,7 +1,7 @@
 CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 
-CFLAGS = -O0 -g3 -pipe -Wall -Wextra
+CFLAGS = -O1 -g3 -pipe -Wall -Wextra
 CPPFLAGS = $(CFLAGS)
 LDFLAGS =
 

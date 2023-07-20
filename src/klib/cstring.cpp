@@ -42,4 +42,18 @@ namespace klib {
         }
         return count ? (*(const unsigned char*)lhs - *(const unsigned char*)rhs) : 0;
     }
+
+    char* strchr(char *str, char c) {
+        while (*str != c)
+            if (*str++ == 0)
+                return nullptr;
+        return str;
+    }
+
+    const char* strchr(const char *str, char c) {
+        while (*str != c)
+            if (*str++ == 0)
+                return nullptr;
+        return str;
+    }
 }

@@ -103,7 +103,6 @@ namespace ps2::kbd {
     }
 
     usize read(void *buf, usize count) {
-        asm volatile("sti");
         for (usize i = 0; i < count;) {
             while (buffer_read_index == buffer_write_index)
                 asm volatile("pause");

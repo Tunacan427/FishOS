@@ -1,8 +1,8 @@
 #pragma once
 
 #include <klib/types.hpp>
-#include <mem/allocator.hpp>
 #include <klib/cstring.hpp>
+#include <mem/allocator.hpp>
 
 namespace klib {
     void* malloc(usize size);

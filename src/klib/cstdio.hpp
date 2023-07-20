@@ -2,7 +2,6 @@
 
 #include <stdarg.h>
 #include <klib/types.hpp>
-#include <gfx/framebuffer.hpp>
 
 namespace klib {
     int putchar(char c);

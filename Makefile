@@ -5,7 +5,7 @@ CC = x86_64-elf-gcc
 CPP = x86_64-elf-g++
 NASM = nasm
 
-CFLAGS = -O2 -g3 -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined
+CFLAGS = -O0 -g3 -pipe -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -fsanitize=undefined
 CPPFLAGS = $(CFLAGS)
 NASMFLAGS = -felf64 -g
 LDFLAGS =
@@ -22,6 +22,7 @@ INTERNALCFLAGS :=           \
 	-fstack-protector       \
 	-fno-pie                \
 	-fno-pic                \
+	-fno-omit-frame-pointer \
 	-march=x86-64           \
 	-mabi=sysv              \
 	-mno-80387              \
@@ -29,6 +30,7 @@ INTERNALCFLAGS :=           \
 	-mno-sse                \
 	-mno-sse2               \
 	-mno-red-zone           \
+	-mgeneral-regs-only     \
 	-mcmodel=kernel         \
 	-MMD
 
@@ -75,7 +77,8 @@ $(ISO): $(KERNEL)
 	@echo "[ISO] $< | $@"
 	@mkdir -p isoroot
 	@cp $(KERNEL) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin isoroot/
-	@cp userspace/test/build/test isoroot/
+	@cp userspace/test/build/test initramfs/bin/
+	@tar -c --format=ustar -f isoroot/initramfs.tar -C initramfs .
 	@xorriso -as mkisofs -b limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
 		--efi-boot limine-uefi-cd.bin \

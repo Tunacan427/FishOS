@@ -2,6 +2,7 @@
 
 #include <klib/types.hpp>
 #include <mem/vmm.hpp>
+#include <fs/vfs.hpp>
 
 // EH: ELF header
 // PH: Program header
@@ -50,5 +51,5 @@ namespace userland::elf {
         u64 alignment;
     };
 
-    uptr load(mem::vmm::Pagemap *pagemap, uptr file_addr);
+    uptr load(mem::vmm::Pagemap *pagemap, fs::vfs::FileNode *file);
 }

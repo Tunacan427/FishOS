@@ -2,11 +2,17 @@
 
 #include "types.hpp"
 
-#define SYS_EXIT   0
-#define SYS_READ   1
-#define SYS_PREAD  2
-#define SYS_WRITE  3
-#define SYS_PWRITE 4
+#define SYS_exit   0
+#define SYS_open   1
+#define SYS_openat 2
+#define SYS_close  3
+#define SYS_read   4
+#define SYS_pread  5
+#define SYS_write  6
+#define SYS_pwrite 7
+#define SYS_seek   8
+#define SYS_getcwd 9
+#define SYS_chdir  10
 
 #define SYSCALL_INLINE [[gnu::always_inline]] inline
 

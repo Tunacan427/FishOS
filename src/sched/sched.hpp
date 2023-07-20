@@ -5,7 +5,7 @@
 #include <klib/types.hpp>
 #include <klib/vector.hpp>
 #include <klib/list.hpp>
-#include <userland/fd.hpp>
+#include <fs/vfs.hpp>
 
 namespace sched {
     struct Task {
@@ -22,15 +22,19 @@ namespace sched {
         u64 gs_base, fs_base;
         uptr stack; // the actual stack
         bool blocked;
-        klib::Vector<userland::FileDescriptor> file_descriptors;
+        klib::Vector<fs::vfs::FileDescriptor*> file_descriptors;
+        usize num_file_descriptors; // the actual number
+        usize first_free_fdnum; // used for allocating file descriptor numbers
+        fs::vfs::DirectoryNode *cwd; // current working directory
 
-        Task(u16 tid) : tid(tid), gpr_state(new cpu::InterruptState()), blocked(false) {}
+        Task();
+        int allocate_fdnum();
     };
 
     void init();
     void start();
     Task* new_kernel_task(uptr ip, bool enqueue);
-    Task* new_user_task(void *elf_file, bool enqueue);
+    Task* new_user_task(fs::vfs::FileNode *elf_file, bool enqueue);
     [[noreturn]] void dequeue_and_die();
     
     [[noreturn]] void syscall_exit(int status);

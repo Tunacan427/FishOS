@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hpp"
+#include <klib/types.hpp>
 
 namespace klib {
     // mem functions are implemented in mem.asm
@@ -15,4 +15,6 @@ namespace klib {
     char* strcat(char *dst, const char *src);
     int strcmp(const char *lhs, const char *rhs);
     int strncmp(const char *lhs, const char *rhs, usize count);
+    char* strchr(char *str, char c);
+    const char* strchr(const char *str, char c);
 }

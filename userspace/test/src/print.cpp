@@ -1,5 +1,5 @@
 #include "print.hpp"
-#include "syscall.hpp"
+#include "api.hpp"
 
 #define PRINT_BUFFER_SIZE 1024
 static char print_buffer[PRINT_BUFFER_SIZE];
@@ -7,7 +7,7 @@ static usize print_buffer_index;
 
 void flush_print_buffer() {
     if (print_buffer_index == 0) return;
-    syscall(SYS_WRITE, stdout, (u64)print_buffer, print_buffer_index);
+    write(stdout, print_buffer, print_buffer_index);
     print_buffer_index = 0;
 }
 

@@ -1,6 +1,7 @@
 #include <klib/cstdio.hpp>
 #include <klib/lock.hpp>
 #include <gfx/terminal.hpp>
+#include <gfx/framebuffer.hpp>
 #include <cpu/cpu.hpp>
 
 static inline usize num_digits(u64 x, u64 base = 10) {

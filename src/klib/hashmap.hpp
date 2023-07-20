@@ -1,16 +1,23 @@
 #pragma once
 
-#include "cstdlib.hpp"
-#include "types.hpp"
-#include "hash.hpp" 
+#include <klib/cstdlib.hpp>
 
 #define HASHMAP_DELETED_ENTRY (Entry*)(~(uptr)0)
 
 namespace klib {
-    template<typename K, typename V>
+    inline u32 hash(const char *str) { // djb2a
+        u32 hash = 5381;
+
+        for (const char *c = str; *c; c++)
+            hash = ((hash << 5) + hash) ^ *c; // hash * 33 ^ str[i]
+
+        return hash;
+    }
+
+    template<typename V>
     class HashMap {
         struct Entry {
-            K key;
+            const char *key;
             V value;
         };
 
@@ -48,7 +55,7 @@ namespace klib {
             free(old_array);
         }
 
-        void insert(K key, V value) {
+        void insert(const char *key, V value) {
             m_size++;
             if (load_percentage() >= 75) grow();
             auto first_index = hash(key) % m_capacity;
@@ -56,30 +63,30 @@ namespace klib {
                 auto attempt = (i + first_index) % m_capacity;
                 if (m_array[attempt] == HASHMAP_DELETED_ENTRY) continue;
                 if (!m_array[attempt]) {
-                    m_array[attempt] = new Entry(key, value);
+                    m_array[attempt] = new Entry(strdup(key), value);
                     break;
                 }
             }
         }
 
-        V& get(K key) {
+        V* get(const char *key) {
             auto first_index = hash(key) % m_capacity;
             for (usize i = 0; i < m_capacity; i++) {
                 auto attempt = (i + first_index) % m_capacity;
                 if (!m_array[attempt] || m_array[attempt] == HASHMAP_DELETED_ENTRY) continue;
-                if (m_array[attempt]->key == key) {
-                    return m_array[attempt]->value;
+                if (strcmp(m_array[attempt]->key, key) == 0) {
+                    return &m_array[attempt]->value;
                 }
             }
-            __builtin_unreachable();
+            return nullptr;
         }
         
-        void erase(K key) {
+        void erase(const char *key) {
             auto first_index = hash(key) % m_capacity;
             for (usize i = 0; i < m_capacity; i++) {
                 auto attempt = (i + first_index) % m_capacity;
                 if (!m_array[attempt] || m_array[attempt] == HASHMAP_DELETED_ENTRY) continue;
-                if (m_array[attempt]->key == key) {
+                if (strcmp(m_array[attempt]->key, key) == 0) {
                     delete m_array[attempt];
                     m_array[attempt] = HASHMAP_DELETED_ENTRY;
                 }

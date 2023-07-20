@@ -14,6 +14,7 @@ using i32 = int32_t;
 using i64 = int64_t;
 
 using usize = size_t;
+using isize = i64;
 using uptr = uintptr_t;
 
 using nullptr_t = decltype(nullptr);
@@ -66,6 +67,7 @@ namespace klib {
     template<> struct NumericLimits<i16> : public __numeric_limits_helper<16> {};
     template<> struct NumericLimits<i32> : public __numeric_limits_helper<32> {};
     template<> struct NumericLimits<i64> : public __numeric_limits_helper<64> {};
+    static_assert(NumericLimits<usize>::bits == NumericLimits<isize>::bits);
 
     template<typename T> struct RemoveReference { using type = T; };
     template<typename T> struct RemoveReference<T&> { using type = T; };

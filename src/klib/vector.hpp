@@ -1,7 +1,6 @@
 #pragma once
 
-#include "types.hpp"
-#include "cstdlib.hpp"
+#include <klib/cstdlib.hpp>
 
 namespace klib {
     template<typename T>

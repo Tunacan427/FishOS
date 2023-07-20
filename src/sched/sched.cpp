@@ -9,36 +9,37 @@
 #include <klib/cstring.hpp>
 #include <klib/cstdio.hpp>
 #include <userland/elf.hpp>
+#include <gfx/framebuffer.hpp>
 
 namespace sched {
     const usize stack_size = 0x10000; // 64 KiB
     static klib::ListHead sched_list_head;
 
-    // void SleepQueue::insert(Task *task, usize time_ns) {
-    //     if (!head) {
-    //         head = new QueuedTask { task, nullptr, time_ns };
-    //         return;
-    //     }
-
-    //     for (QueuedTask **current = &head; ; current = &(*current)->next) {
-    //         if (*current == nullptr) goto add;
-
-    //         if (time_ns >= (*current)->delta_time_ns) {
-    //             time_ns -= (*current)->delta_time_ns;
-    //             continue;
-    //         }
-
-    //     add:
-    //         (*current) = new QueuedTask { task, *current, time_ns };
-    //         if (auto next = (*current)->next) next->delta_time_ns -= time_ns;
-    //         break;
-    //     }
-    // }
-
-    static u16 tid = 0;
+    int Task::allocate_fdnum() {
+        num_file_descriptors++;
+        for (usize i = first_free_fdnum; i < file_descriptors.size(); i++) {
+            if (file_descriptors[i] == nullptr) {
+                first_free_fdnum = i;
+                return i;
+            }
+        }
+        first_free_fdnum = file_descriptors.size();
+        file_descriptors.push_back(nullptr);
+        return file_descriptors.size() - 1;
+    }
     
+    static u16 last_tid = 0;
+    
+    Task::Task() {
+        tid = last_tid++;
+        gpr_state = new cpu::InterruptState();
+        blocked = false;
+        num_file_descriptors = 0;
+        first_free_fdnum = 0;
+    }
+
     Task* new_kernel_task(uptr ip, bool enqueue) {
-        Task *task = new Task(tid++);
+        Task *task = new Task();
 
         uptr stack_phy = mem::pmm::alloc_pages(stack_size / 0x1000);
         task->stack = stack_phy + stack_size + mem::vmm::get_hhdm();
@@ -59,8 +60,8 @@ namespace sched {
         return task;
     }
 
-    Task* new_user_task(void *elf_file, bool enqueue) {
-        Task *task = new Task(tid++);
+    Task* new_user_task(fs::vfs::FileNode *elf_file, bool enqueue) {
+        Task *task = new Task();
 
         task->pagemap = new mem::vmm::Pagemap();
         task->pagemap->pml4 = (u64*)(mem::pmm::alloc_pages(1) + mem::vmm::get_hhdm());
@@ -74,7 +75,7 @@ namespace sched {
         uptr kernel_stack_phy = mem::pmm::alloc_pages(stack_size / 0x1000);
         task->kernel_stack = kernel_stack_phy + stack_size + mem::vmm::get_hhdm();
 
-        uptr ip = userland::elf::load(task->pagemap, (uptr)elf_file);
+        uptr ip = userland::elf::load(task->pagemap, elf_file);
 
         task->running_on = 0;
         task->gpr_state->cs = u64(cpu::GDTSegment::USER_CODE_64) | 3;
@@ -87,22 +88,12 @@ namespace sched {
         task->gs_base = 0;
         task->fs_base = 0;
 
-        userland::FileDescriptor stdin;
-        stdin.node = nullptr; stdin.cursor = 0;
-        task->file_descriptors.push_back(stdin);
-
-        userland::FileDescriptor stdout;
-        stdout.node = nullptr; stdout.cursor = 0;
-        task->file_descriptors.push_back(stdout);
-
-        userland::FileDescriptor stderr;
-        stderr.node = nullptr; stderr.cursor = 0;
-        task->file_descriptors.push_back(stderr);
-
-        userland::FileDescriptor fd;
-        fd.node = fs::vfs::root_dir()->children.get("world.txt");
-        fd.cursor = 0;
-        task->file_descriptors.push_back(fd);
+        task->file_descriptors.push_back(new fs::vfs::FileDescriptor()); // stdin
+        task->file_descriptors.push_back(new fs::vfs::FileDescriptor()); // stdout
+        task->file_descriptors.push_back(new fs::vfs::FileDescriptor()); // stderr
+        task->num_file_descriptors = 3;
+        task->first_free_fdnum = 3;
+        task->cwd = fs::vfs::root_dir();
 
         if (enqueue)
             sched_list_head.add_before(&task->sched_list);
