@@ -26,6 +26,7 @@ namespace sched {
         usize num_file_descriptors; // the actual number
         usize first_free_fdnum; // used for allocating file descriptor numbers
         fs::vfs::DirectoryNode *cwd; // current working directory
+        uptr mmap_anon_base; // used for mmap bump allocator
 
         Task();
         int allocate_fdnum();

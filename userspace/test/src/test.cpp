@@ -2,9 +2,7 @@
 #include "print.hpp"
 #include "string.hpp"
 
-int main() {
-    printf("Hello from userspace!\n");
-    printf("Address of main: %#lX\n", (uptr)&main);
+static void test_cwd() {
     {
         char cwd[64] = {};
         getcwd(cwd, 64);
@@ -29,6 +27,9 @@ int main() {
         getcwd(cwd, 64);
         printf("cwd: %s\n", cwd);
     }
+}
+
+static void test_openat() {
     int hello_fd = open("hello/");
     printf("fd %d is the hello directory\n", hello_fd);
     int world_fd = openat(hello_fd, "world.txt");
@@ -42,6 +43,9 @@ int main() {
         printf("%.*s\n", 6, read_buffer);
     }
     close(world_fd);
+}
+
+static void test_fd() {
     int test_fd = open("/./hello/.././.././test.txt");
     {
         const char *text1 = "Hello";
@@ -58,8 +62,65 @@ int main() {
         printf("%.*s\n", 13, read_buffer);
     }
     close(test_fd);
-    printf("echo time\n");
-    printf("type 'exit' to exit\n");
+}
+
+static void test_mmap() {
+    {
+        printf("mmapping 64 MiB of memory and writing it\n");
+        constexpr int N = 1024 * 1024 * 16;
+        isize ret = mmap(nullptr, N * sizeof(int), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+        if (ret < 0) {
+            printf("mmap fail\n");
+            return;
+        }
+        int *ptr = (int*)ret;
+
+        // fill the elements of the array
+        for (int i = 0; i < N; i++)
+            ptr[i] = i * 10;
+
+        // print the elements of the array
+        printf("checking\n");
+        for (int i = 0; i < N; i++) {
+            if (ptr[i] != i * 10) {
+                printf("incorrect\n");
+                return;
+            }
+        }
+
+        printf("done\n");
+    }
+    {
+        printf("mmapping 1 GiB of memory and writing only 4 MiB of it\n");
+        isize ret = mmap(nullptr, 1024 * 1024 * 1024, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+        if (ret < 0) {
+            printf("mmap fail\n");
+            return;
+        }
+        int *ptr = (int*)ret;
+
+        constexpr int N = 1024 * 1024 * 1;
+        // fill the elements of the array
+        for (int i = N * 5; i < N * 6; i++)
+            ptr[i] = i * 10;
+
+        // print the elements of the array
+        printf("checking\n");
+        for (int i = N * 5; i < N * 6; i++) {
+            if (ptr[i] != i * 10) {
+                printf("incorrect\n");
+                return;
+            }
+        }
+
+        printf("done\n");
+    }
+}
+
+int main() {
+    printf("Hello from userspace!\n");
+    printf("Address of main: %#lX\n", (uptr)&main);
+    printf("Type 'help' to list tests\n");
     while (true) {
         printf("> ");
         flush_print_buffer();
@@ -67,17 +128,18 @@ int main() {
         stdin_buffer[255] = 0;
         read(stdin, stdin_buffer, 255);
         char *input = (char*)stdin_buffer;
-        int len = strlen(input);
-        if (strcmp(input, "exit\n") == 0) {
-            printf("goodbye\n");
-            return 0;
-        }
-        printf("%.*s", len, input);
+        if (strcmp(input, "help\n") == 0)   { printf("exit\ncwd\nopenat\nfd\nmmap\n"); continue; }
+        if (strcmp(input, "exit\n") == 0)   { printf("goodbye\n"); return 0; }
+        if (strcmp(input, "cwd\n") == 0)    { test_cwd(); continue; }
+        if (strcmp(input, "openat\n") == 0) { test_openat(); continue; }
+        if (strcmp(input, "fd\n") == 0)     { test_fd(); continue; }
+        if (strcmp(input, "mmap\n") == 0)   { test_mmap(); continue; }
+        printf("invalid command\n");
     }
     return 0;
 }
 
-extern "C" void _start() {
+extern "C" [[noreturn]] void _start() {
     int status = main();
     flush_print_buffer();
     exit(status);

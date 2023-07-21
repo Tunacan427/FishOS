@@ -162,15 +162,6 @@ extern "C" [[noreturn]] void _start() {
     auto initramfs_module = module_res->modules[0];
     klib::printf("Loading initramfs file %s (size: %ld KiB)\n", initramfs_module->path, initramfs_module->size / 1024);
     fs::initramfs::load_into(fs::vfs::root_dir(), initramfs_module->address, initramfs_module->size);
-    
-    {
-        auto hello_dir = (fs::vfs::DirectoryNode*)*fs::vfs::root_dir()->children.get("hello");
-        auto result = fs::vfs::path_to_node("..", hello_dir);
-        if (result.target == nullptr)
-            panic("Failed to find target");
-        klib::printf("name: %s\n", result.target->name);
-        delete[] result.basename;
-    }
 
     auto result = fs::vfs::path_to_node("/bin/test");
     if (result.target == nullptr)

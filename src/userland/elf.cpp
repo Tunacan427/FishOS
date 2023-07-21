@@ -1,12 +1,16 @@
 #include <userland/elf.hpp>
 #include <klib/cstring.hpp>
 #include <klib/cstdio.hpp>
+#include <klib/algorithm.hpp>
 #include <mem/vmm.hpp>
 #include <mem/pmm.hpp>
 #include <panic.hpp>
 
 namespace userland::elf {
-    uptr load(mem::vmm::Pagemap *pagemap, fs::vfs::FileNode *file) {
+    uptr load(mem::vmm::Pagemap *pagemap, fs::vfs::FileNode *file, uptr *first_free_virt) {
+        ASSERT(first_free_virt);
+        *first_free_virt = 0;
+
         Header header {};
         file->fs->read(file->fs, file, &header, sizeof(Header), 0);
 
@@ -34,14 +38,15 @@ namespace userland::elf {
                 
                 if (!(ph.flags & PF_X))
                     page_flags |= PAGE_NO_EXECUTE;
-                
+
                 usize misalign = ph.virt_addr & 0xFFF;
                 usize mem_page_count = (ph.mem_size + misalign + 0x1000 - 1) / 0x1000;
                 usize file_page_count = (ph.file_size + misalign + 0x1000 - 1) / 0x1000;
                 
                 for (usize i = 0; i < mem_page_count; i++) {
                     uptr page_phy = mem::pmm::alloc_pages(1);
-                    pagemap->map_page(page_phy, ph.virt_addr + (i * 0x1000), page_flags);
+                    uptr page_virt = ph.virt_addr + (i * 0x1000);
+                    pagemap->map_page(page_phy, page_virt, page_flags);
                     uptr dst = page_phy + mem::vmm::get_hhdm();
                     klib::memset((void*)dst, 0, 0x1000); // TODO: optimize this
                     if (i < file_page_count) {
@@ -56,6 +61,8 @@ namespace userland::elf {
                         }
                         file->fs->read(file->fs, file, (void*)dst, size, offset);
                     }
+                    if (page_virt >= *first_free_virt)
+                        *first_free_virt = page_virt + 0x1000;
                 }
                 
                 break;
@@ -64,7 +71,8 @@ namespace userland::elf {
                 klib::printf("ELF Loader: Unrecognized program header type: %#X\n", ph.type);
             }
         }
-        
+
+        *first_free_virt = klib::align_up<uptr, 0x1000>(*first_free_virt);
         return header.entry_addr;
     }
 }

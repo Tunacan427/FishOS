@@ -51,5 +51,6 @@ namespace userland::elf {
         u64 alignment;
     };
 
-    uptr load(mem::vmm::Pagemap *pagemap, fs::vfs::FileNode *file);
+    // first_free_virt will hold the first virtual address that is free (used for anon mmap)
+    uptr load(mem::vmm::Pagemap *pagemap, fs::vfs::FileNode *file, uptr *first_free_virt);
 }

@@ -18,6 +18,7 @@ INTERNALCFLAGS :=           \
 	-fno-pie                \
 	-fno-pic                \
 	-fno-omit-frame-pointer \
+	-fstack-protector       \
 	-march=x86-64           \
 	-mabi=sysv              \
 	-mno-80387              \

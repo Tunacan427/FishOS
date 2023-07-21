@@ -12,7 +12,7 @@
 #include <gfx/framebuffer.hpp>
 
 namespace sched {
-    const usize stack_size = 0x10000; // 64 KiB
+    const usize stack_size = 64 * 1024; // 64 KiB
     static klib::ListHead sched_list_head;
 
     int Task::allocate_fdnum() {
@@ -67,15 +67,20 @@ namespace sched {
         task->pagemap->pml4 = (u64*)(mem::pmm::alloc_pages(1) + mem::vmm::get_hhdm());
         klib::memset(task->pagemap->pml4, 0, 0x1000);
         task->pagemap->map_kernel();
-
-        uptr stack_phy = mem::pmm::alloc_pages(stack_size / 0x1000);
-        task->stack = stack_phy + stack_size;
-        task->pagemap->map_pages(stack_phy, stack_phy, stack_size, PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_NO_EXECUTE);
+        task->pagemap->range_list_head.init();
 
         uptr kernel_stack_phy = mem::pmm::alloc_pages(stack_size / 0x1000);
         task->kernel_stack = kernel_stack_phy + stack_size + mem::vmm::get_hhdm();
+        
+        uptr ip = userland::elf::load(task->pagemap, elf_file, &task->mmap_anon_base);
 
-        uptr ip = userland::elf::load(task->pagemap, elf_file);
+        task->stack = task->mmap_anon_base;
+        for (usize i = 0; i < stack_size / 0x1000; i++) {
+            uptr page_phy = mem::pmm::alloc_pages(1);
+            klib::memset((void*)(page_phy + mem::vmm::get_hhdm()), 0, 0x1000);
+            task->pagemap->map_page(page_phy, task->mmap_anon_base, PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_NO_EXECUTE);
+            task->mmap_anon_base += 0x1000;
+        }
 
         task->running_on = 0;
         task->gpr_state->cs = u64(cpu::GDTSegment::USER_CODE_64) | 3;

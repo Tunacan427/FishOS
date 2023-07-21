@@ -2,6 +2,7 @@
 
 #include <klib/types.hpp>
 #include <klib/lock.hpp>
+#include <klib/list.hpp>
 #include <limine.hpp>
 
 #define PAGE_PRESENT (1 << 0)
@@ -17,23 +18,39 @@
 #define PAGE_NO_EXECUTE ((u64)1 << 63)
 
 namespace mem::vmm {
+    struct MappedRange {
+        enum class Type {
+            DIRECT,
+            ANONYMOUS
+        };
+
+        klib::ListHead range_list;
+        uptr base;
+        uptr length;
+        u64 page_flags;
+        Type type;
+    };
+
     struct Pagemap {
         u64 *pml4;
         klib::Spinlock lock;
+        klib::ListHead range_list_head;
 
         void activate();
+        uptr physical_addr(uptr virt);
 
         void map_page(uptr phy, uptr virt, u64 flags);
         void map_pages(uptr phy, uptr virt, usize size, u64 flags);
         void map_kernel(); // for user pagemaps
 
-        uptr physical_addr(uptr virt);
+        MappedRange* addr_to_range(uptr virt);
+        bool handle_page_fault(uptr virt);
     };
 
     void init(uptr hhdm_base, limine_memmap_response *memmap_res, limine_kernel_address_response *kernel_addr_res);
 
     uptr get_hhdm();
-    Pagemap *get_kernel_pagemap();
+    Pagemap* get_kernel_pagemap();
 
-    bool try_demand_page(uptr virt);
+    isize syscall_mmap(void *hint, usize length, int prot, int flags, int fd, usize offset);
 }

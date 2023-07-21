@@ -65,7 +65,7 @@ __idt_wrapper_common:
     pop rbx
     pop rax
 
-    add rsp, 8
+    add rsp, 8 ; skip the error code
 
     cmp QWORD [rsp + 8], 0x23 ; check if code segment is user
     jne .continue2

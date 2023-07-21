@@ -1,12 +1,9 @@
 #include <fs/initramfs.hpp>
 #include <klib/cstdio.hpp>
+#include <klib/algorithm.hpp>
 #include <panic.hpp>
 
 namespace fs::initramfs {
-    static inline usize align_size(usize i) {
-        return i % 512 ? ((i / 512) + 1) * 512 : i;
-    }
-
     static usize octal_to_bin(const char *str, usize len) {
         usize value = 0;
         while (*str && len > 0) {
@@ -50,7 +47,7 @@ namespace fs::initramfs {
                 delete[] result.basename;
             }
 
-            current = (USTARHeader*)((uptr)current + 512 + align_size(size));
+            current = (USTARHeader*)((uptr)current + 512 + klib::align_up<usize, 512>(size));
             if ((uptr)current >= (uptr)file_addr + file_size)
                 break;
         }

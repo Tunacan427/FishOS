@@ -8,4 +8,4 @@
 /ovmf/
 build/
 /initramfs/bin/*
-!/initramfs/bin/.gitkeep
+!.keep

@@ -40,7 +40,7 @@ __syscall_entry:
 
     mov rcx, r10 ; to retrieve function arguments properly
     mov rax, [rsp + 16 * 8] ; retrieve the original value of rax
-    cmp rax, 11 ; size of the syscall table
+    cmp rax, 12 ; size of the syscall table
     jae .out_of_bounds ; check if rax is a correct syscall table index
     sti
     call [__syscall_table + rax * 8]

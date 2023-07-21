@@ -1,10 +1,11 @@
 #include <cpu/cpu.hpp>
 #include <klib/cstdio.hpp>
 #include <sched/sched.hpp>
+#include <mem/vmm.hpp>
 #include <fs/vfs.hpp>
 
 namespace cpu::syscall {
-    extern "C" { void *__syscall_table[11]; }
+    extern "C" { void *__syscall_table[12]; }
     
     void init_syscall_table() {
         __syscall_table[0]  = (void*)&sched::syscall_exit;
@@ -18,5 +19,6 @@ namespace cpu::syscall {
         __syscall_table[8]  = (void*)&fs::vfs::syscall_seek;
         __syscall_table[9]  = (void*)&fs::vfs::syscall_getcwd;
         __syscall_table[10] = (void*)&fs::vfs::syscall_chdir;
+        __syscall_table[11] = (void*)&mem::vmm::syscall_mmap;
     }
 }

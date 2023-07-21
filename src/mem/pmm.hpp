@@ -6,10 +6,8 @@
 
 namespace mem::pmm {
     void init(uptr hhdm, limine_memmap_response *memmap_res);
-
     klib::Bitmap* get_bitmap();
-    usize get_total_mem();
-
     uptr alloc_pages(usize num_pages);
     void free_pages(uptr phy, usize num_pages);
+    usize get_total_allocated();
 }

@@ -13,6 +13,7 @@
 #define SYS_seek   8
 #define SYS_getcwd 9
 #define SYS_chdir  10
+#define SYS_mmap   11
 
 #define SYSCALL_INLINE [[gnu::always_inline]] inline
 

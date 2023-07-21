@@ -3,12 +3,12 @@
 #include <panic.hpp>
 #include <klib/cstdio.hpp>
 #include <klib/cstring.hpp>
+#include <klib/algorithm.hpp>
+#include <klib/posix.hpp>
 #include <cpu/cpu.hpp>
+#include <cpu/syscall/syscall.hpp>
+#include <sched/sched.hpp>
 #include <limine.hpp>
-
-static inline usize align_page(usize i) {
-    return i % 0x1000 ? ((i / 0x1000) + 1) * 0x1000 : i;
-}
 
 namespace mem::vmm {
     const usize heap_size = 1024 * 1024 * 1024;
@@ -20,6 +20,8 @@ namespace mem::vmm {
     static uptr kernel_virt_base;
 
     static Pagemap kernel_pagemap;
+    static MappedRange kernel_hhdm_range;
+    static MappedRange kernel_heap_range;
 
     void init(uptr hhdm_base, limine_memmap_response *memmap_res, limine_kernel_address_response *kernel_addr_res) {
         hhdm = hhdm_base;
@@ -72,6 +74,21 @@ namespace mem::vmm {
 */
 
         kernel_pagemap.map_pages(kernel_phy_base, kernel_virt_base, kernel_size, PAGE_PRESENT | PAGE_WRITABLE);
+        kernel_pagemap.range_list_head.init();
+        kernel_hhdm_range = {
+            .base = hhdm_base,
+            .length = (u64)1024 * 1024 * 1024 * 1024,
+            .page_flags = PAGE_PRESENT | PAGE_WRITABLE,
+            .type = MappedRange::Type::DIRECT
+        };
+        kernel_pagemap.range_list_head.add(&kernel_hhdm_range.range_list);
+        kernel_heap_range = { 
+            .base = heap_begin,
+            .length = heap_size,
+            .page_flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE,
+            .type = MappedRange::Type::ANONYMOUS
+        };
+        kernel_pagemap.range_list_head.add(&kernel_heap_range.range_list);
         kernel_pagemap.activate();
     }
 
@@ -114,8 +131,8 @@ namespace mem::vmm {
     }
 
     void Pagemap::map_pages(uptr phy, uptr virt, usize size, u64 flags) {
-        usize num_pages = align_page(size) / 0x1000;
-        // klib::printf("Mapping %ld pages phy %#lX virt %#lX\n", num_pages, phy, virt);
+        usize num_pages = klib::align_up<usize, 0x1000>(size) / 0x1000;
+        // klib::printf("Mapping %ld pages phy %#lX virt %#lX end %#lX\n", num_pages, phy, virt, phy + num_pages * 0x1000);
         for (usize i = 0; i < num_pages; i++)
             map_page(phy + (i * 0x1000), virt + (i * 0x1000), flags);
     }
@@ -129,7 +146,6 @@ namespace mem::vmm {
     }
 
     void Pagemap::activate() {
-        klib::LockGuard guard(this->lock);
         // bool is_pagemap_empty = true;
         // for (usize i = 0; i < 512; i++)
         //     if (pml4[i] != 0) { is_pagemap_empty = false; break; }
@@ -150,9 +166,23 @@ namespace mem::vmm {
         return *entry & 0x000FFFFFFFFFF000;
     }
 
-    bool try_demand_page(uptr virt) {
-        klib::LockGuard guard(kernel_pagemap.lock);
-        u64 *current_table = (u64*)kernel_pagemap.pml4;
+    // TODO: maybe optimize somehow
+    MappedRange* Pagemap::addr_to_range(uptr virt) {
+        klib::ListHead *current = &this->range_list_head;
+        while (true) {
+            if (current->next == &this->range_list_head)
+                return nullptr;
+            current = current->next;
+            MappedRange *range = LIST_ENTRY(current, MappedRange, range_list);
+            if (virt >= range->base && virt <= range->base + range->length)
+                return range;
+        }
+    }
+
+    // returns true if the page fault couldnt be handled
+    bool Pagemap::handle_page_fault(uptr virt) {
+        klib::LockGuard guard(this->lock);
+        u64 *current_table = this->pml4;
 
         current_table = page_table_next_level(current_table, (virt >> 39) & 0x1FF);
         current_table = page_table_next_level(current_table, (virt >> 30) & 0x1FF);
@@ -161,16 +191,53 @@ namespace mem::vmm {
         u64 *entry = &current_table[virt >> 12 & 0x1FF];
 
         if (!(*entry & PAGE_PRESENT)) {
-            if (virt >= heap_begin && virt <= heap_end) {
-                // kernel heap, allocate a new page
+            MappedRange *range = addr_to_range(virt);
+            if (range == nullptr)
+                return true;
+            
+            switch (range->type) {
+            case MappedRange::Type::ANONYMOUS: {
+                // allocate a new page
                 uptr new_page = pmm::alloc_pages(1);
                 klib::memset((void*)(new_page + hhdm), 0, 0x1000);
-                *entry = new_page | PAGE_PRESENT | PAGE_WRITABLE | PAGE_NO_EXECUTE;
-            } else // direct map
-                *entry = ((virt - hhdm) & 0x000FFFFFFFFFF000) | PAGE_PRESENT | PAGE_WRITABLE;
-            return false;
-        }
+                *entry = new_page | range->page_flags;
+                return false;
+            }
+            case MappedRange::Type::DIRECT:
+                *entry = ((virt - hhdm) & 0x000FFFFFFFFFF000) | range->page_flags;
+                return false;
+            default:
+                klib::printf("Unknown mapped range type: %#lX\n", u64(range->type));
+                return true;
+            }
+        } else return true;
+    }
+    
+    isize syscall_mmap(void *hint, usize length, int prot, int flags, int fd, usize offset) {
+#if SYSCALL_TRACE
+        klib::printf("mmap(%#lX, %ld, %d, %d, %d, %ld)\n", (uptr)hint, length, prot, flags, fd, offset);
+#endif
+        auto *task = (sched::Task*)cpu::read_gs_base();
+        if (!(flags & MAP_PRIVATE) || (flags & MAP_SHARED) || !(flags & MAP_ANONYMOUS))
+            return -ENOSYS; // only private anonymous mapping is supported
+        
+        u64 page_flags = PAGE_PRESENT | PAGE_USER;
+        if (prot & PROT_WRITE)
+            page_flags |= PAGE_WRITABLE;
+        if (!(prot & PROT_EXEC))
+            page_flags |= PAGE_NO_EXECUTE;
+        
+        uptr base = task->mmap_anon_base;
+        usize aligned_size = klib::align_up<usize, 0x1000>(length);
 
-        return true;
+        MappedRange *range = new MappedRange();
+        range->base = base;
+        range->length = aligned_size;
+        range->page_flags = page_flags;
+        range->type = MappedRange::Type::ANONYMOUS;
+        task->pagemap->range_list_head.add(&range->range_list);
+
+        task->mmap_anon_base += aligned_size;
+        return base;
     }
 }

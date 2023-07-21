@@ -33,8 +33,9 @@ void seek(int fd, isize offset) {
     syscall(SYS_seek, fd, offset);
 }
 
-void exit(int status) {
+[[noreturn]] void exit(int status) {
     syscall(SYS_exit, status);
+    __builtin_unreachable();
 }
 
 isize getcwd(char *buf, usize size) {
@@ -43,4 +44,8 @@ isize getcwd(char *buf, usize size) {
 
 isize chdir(const char *path) {
     return syscall(SYS_chdir, (uptr)path);
+}
+
+isize mmap(void *hint, usize length, int prot, int flags, int fd, usize offset) {
+    return syscall(SYS_mmap, (uptr)hint, length, prot, flags, fd, offset);
 }

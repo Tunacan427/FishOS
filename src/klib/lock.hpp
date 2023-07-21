@@ -3,23 +3,31 @@
 #include <klib/types.hpp>
 #include <panic.hpp>
 
+#define DETECT_DEADLOCK 1
+
 namespace klib {
     struct Spinlock {
-        // int i = 0;
         volatile bool locked = false;
+#if DETECT_DEADLOCK
+        u32 i = 0;
+#endif
 
         inline void lock() {
             asm volatile("cli");
             while (__atomic_test_and_set(&this->locked, __ATOMIC_ACQUIRE)) {
-                // i++;
-                // if (i == 10000000)
-                //     panic("Spinlock spun too much");
+#if DETECT_DEADLOCK
+                i++;
+                if (i == 10000000)
+                    panic("Spinlock spun too much");
+#endif
                 asm volatile("pause");
             }
         }
 
         inline void unlock() {
-            // i = 0;
+#if DETECT_DEADLOCK
+            i = 0;
+#endif
             __atomic_clear(&this->locked, __ATOMIC_RELEASE);
             asm volatile("sti");
         }
